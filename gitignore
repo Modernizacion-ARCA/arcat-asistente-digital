@@ -1,0 +1,62 @@
+# ==============================================================================
+# 🐍 BACKEND: DJANGO & PYTHON
+# ==============================================================================
+
+# Archivos compilados y binarios de Python (Causa común del error)
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Entornos virtuales (¡Nunca se deben subir!)
+**/venv/
+**/.venv/
+**/env/
+**/env.bak/
+**/venv.bak/
+
+# Base de datos local (SQLite suele ser un archivo binario)
+*.sqlite3
+*.db
+
+# Archivos de configuración local y variables de entorno
+**/api/.env
+**/api/local_settings.py
+
+
+# ==============================================================================
+# ⚛️ FRONTEND: NEXT.JS & REACT
+# ==============================================================================
+
+# Dependencias de Node
+**/node_modules/
+**/jspm_packages/
+
+# Carpetas de compilación (Next.js genera muchos archivos temporales y estáticos)
+**/front/.next/
+**/front/out/
+**/front/build/
+**/front/dist/
+
+# Logs de errores
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Configuración local de Next.js
+**/front/.env
+**/front/.env.local
+**/front/.env.development.local
+**/front/.env.test.local
+**/front/.env.production.local
+
+
+# ==============================================================================
+# ⚙️ ARCHIVOS DEL SISTEMA Y OTROS BINARIOS
+# ==============================================================================
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
