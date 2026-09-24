@@ -1,0 +1,58 @@
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+!**/env.example
+*.pem
+*.key
+secret.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.venv/
+venv/
+
+# Django runtime data
+*.db
+*.sqlite3
+*.log
+static/
+media/
+project/static/
+project/media/
+project/test_media/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.npm/
+
+# Builds and temporary files
+build/
+dist/
+tmp/
+.cache/
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Local deployment artifacts
+deployment/logs/
+deployment/circus.ini
+deployment/nginx.conf
+Procfile.dev

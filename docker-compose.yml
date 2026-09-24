@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-arcat}
+      POSTGRES_USER: ${POSTGRES_USER:-arcat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arcat-development-only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./api
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-arcat}:${POSTGRES_PASSWORD:-arcat-development-only}@postgres:5432/${POSTGRES_DB:-arcat}
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-project.settings.development}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-unsafe-compose-development-key}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      DJANGO_CORS_ALLOWED_ORIGINS: ${DJANGO_CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-http://localhost:3000}
+      DJANGO_SECURE_SSL_REDIRECT: ${DJANGO_SECURE_SSL_REDIRECT:-false}
+      DJANGO_SESSION_COOKIE_SECURE: ${DJANGO_SESSION_COOKIE_SECURE:-false}
+      DJANGO_CSRF_COOKIE_SECURE: ${DJANGO_CSRF_COOKIE_SECURE:-false}
+      PROJECT_NAME_TITLE: ${PROJECT_NAME_TITLE:-Asistente digital ARCAT}
+      PROJECT_NAME_HEADER: ${PROJECT_NAME_HEADER:-Administración ARCAT}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
