@@ -111,7 +111,6 @@ deployment/nginx.conf
 
 .pytest_cache/
 
-project/settings/production.py
 project/static/*
 project/media/*
 static/*

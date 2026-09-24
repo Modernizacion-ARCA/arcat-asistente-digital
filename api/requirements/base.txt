@@ -7,8 +7,8 @@ djangorestframework-jsonapi==6.1.0
 
 django-extensions==3.2.3
 
-psycopg2==2.9.9
-psycopg2-binary==2.9.9
+psycopg[binary]==3.2.10
+pgvector==0.4.1
 
 
 django-autocomplete-light==3.11.0
@@ -31,5 +31,4 @@ django-better-admin-arrayfield==1.4.2
 
 django-querysetsequence==0.17
 django-rest-framework-social-oauth2==1.2.0
-
 

@@ -1,0 +1,10 @@
+# Normalize repository text files and force the legacy UTF-16 README to be
+# rendered as text in diffs now that its working-tree encoding is UTF-8.
+* text=auto eol=lf
+README.md text eol=lf diff
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary

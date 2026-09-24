@@ -10,9 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 import sys
-import environ
 
-CORS_ORIGIN_ALLOW_ALL = True
+import environ
 
 ROOT_DIR = environ.Path(__file__) - 3
 PROJECT_DIR = ROOT_DIR.path('project')
@@ -30,7 +29,7 @@ env.read_env(env_file)
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env('DJANGO_SECRET_KEY', default='CHANGEME!!!')
+SECRET_KEY = env('DJANGO_SECRET_KEY', default='unsafe-development-key-change-me')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool('DJANGO_DEBUG', True)
@@ -39,7 +38,13 @@ DEBUG = env.bool('DJANGO_DEBUG', True)
 PROJECT_NAME_HEADER = env('PROJECT_NAME_HEADER', default='Django')
 PROJECT_NAME_TITLE = env('PROJECT_NAME_TITLE', default='Django')
 
-ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default='*')  # noqa
+ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
+
+# Cross-origin access is deny-by-default. Development origins must be explicitly
+# listed, and production can never silently inherit a wildcard policy.
+CORS_ALLOW_ALL_ORIGINS = env.bool('DJANGO_CORS_ALLOW_ALL_ORIGINS', default=False)
+CORS_ALLOWED_ORIGINS = env.list('DJANGO_CORS_ALLOWED_ORIGINS', default=[])
+CSRF_TRUSTED_ORIGINS = env.list('DJANGO_CSRF_TRUSTED_ORIGINS', default=[])
 
 # Application definition
 
@@ -72,6 +77,9 @@ PROJECT_APPS = [
     'core',
     'persona',
     'util',
+    'organizations',
+    'procedures',
+    'sources',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + PROJECT_APPS
@@ -96,7 +104,12 @@ ROOT_URLCONF = 'project.urls'
 
 AUTH_USER_MODEL = 'usuario.Usuario'
 
-DATABASES = {'default': env.db('DATABASE_URL')}
+DATABASES = {
+    'default': env.db(
+        'DATABASE_URL',
+        default='postgresql://arcat:arcat@localhost:5432/arcat',
+    )
+}
 
 TEMPLATES = [
     {
@@ -155,6 +168,9 @@ STATIC_URL = env('DJANGO_STATIC_URL', default='/static/')
 
 STATIC_ROOT = env('DJANGO_STATIC_ROOT', default='./static/')
 
+MEDIA_URL = env('DJANGO_MEDIA_URL', default='/media/')
+MEDIA_ROOT = env('DJANGO_MEDIA_ROOT', default='./media/')
+
 STATICFILES_DIRS = [str(PROJECT_DIR.path('assets')), ]
 
 if "DJANGO_GDAL_LIBRARY_PATH" in env.ENVIRON:
@@ -194,5 +210,3 @@ if ACTIVAR_HERRAMIENTAS_DEBUGGING:
     REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'] += ('rest_framework.authentication.SessionAuthentication',)
 
 DRFSO2_URL_NAMESPACE = 'auth-api'
-if "DJANGO_CSRF" in env.ENVIRON:
-    CSRF_TRUSTED_ORIGINS = env("DJANGO_CSRF").split(" ")
