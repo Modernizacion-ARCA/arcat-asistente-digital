@@ -1,0 +1,11 @@
+{% load url_admin from url_actions %}
+
+<div class="btn-group" role="group" style="display: flex !important;">
+
+    {% if object_instance.get_absolute_url %}
+        <a href="{{ object_instance.get_absolute_url }}?{{ request.GET.urlencode }}" class="button">Detalle</a>
+        &nbsp&nbsp
+    {% endif %}
+
+    <a href="{{ object_instance|url_admin:'change' }}" class="button">Editar</a>
+</div>
