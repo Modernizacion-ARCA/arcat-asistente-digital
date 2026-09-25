@@ -1,5 +1,7 @@
 from django.core.validators import RegexValidator
 from django.db import models
+from django.conf import settings
+from pgvector.django import VectorField
 
 
 class Fuente(models.Model):
@@ -136,3 +138,38 @@ class Documento(models.Model):
 
     def __str__(self):
         return self.titulo
+
+
+class DocumentChunk(models.Model):
+    documento = models.ForeignKey(
+        Documento,
+        on_delete=models.CASCADE,
+        related_name='fragmentos',
+    )
+    contenido = models.TextField()
+    indice = models.PositiveIntegerField()
+    embedding = VectorField(dimensions=settings.EMBEDDING_DIMENSION)
+    embedding_model = models.CharField(max_length=255)
+    metadata = models.JSONField(default=dict, blank=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('documento_id', 'indice')
+        constraints = [
+            models.UniqueConstraint(
+                fields=('documento', 'indice'),
+                name='unique_chunk_index_por_documento',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=('embedding_model',),
+                name='chunk_embedding_model_idx',
+            ),
+        ]
+        verbose_name = 'Fragmento de documento'
+        verbose_name_plural = 'Fragmentos de documentos'
+
+    def __str__(self):
+        return f'{self.documento} — fragmento {self.indice}'

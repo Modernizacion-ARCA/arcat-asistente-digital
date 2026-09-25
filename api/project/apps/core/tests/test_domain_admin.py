@@ -12,8 +12,8 @@ from procedures.admin import (
     TramiteAdmin,
 )
 from procedures.models import Categoria, Plataforma, Servicio, Tramite
-from sources.admin import DocumentoAdmin, FuenteAdmin
-from sources.models import Documento, Fuente
+from sources.admin import DocumentChunkAdmin, DocumentoAdmin, FuenteAdmin
+from sources.models import DocumentChunk, Documento, Fuente
 
 
 @pytest.mark.parametrize(
@@ -27,6 +27,7 @@ from sources.models import Documento, Fuente
         (Servicio, ServicioAdmin),
         (Fuente, FuenteAdmin),
         (Documento, DocumentoAdmin),
+        (DocumentChunk, DocumentChunkAdmin),
     ),
 )
 def test_modelos_del_dominio_estan_registrados(model, admin_class):

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Documento, Fuente
+from .models import DocumentChunk, Documento, Fuente
 
 
 @admin.register(Fuente)
@@ -72,3 +72,19 @@ class DocumentoAdmin(admin.ModelAdmin):
             'fields': ('fecha_documento', 'fecha_creacion', 'fecha_actualizacion'),
         }),
     )
+
+
+@admin.register(DocumentChunk)
+class DocumentChunkAdmin(admin.ModelAdmin):
+    list_display = (
+        'documento',
+        'indice',
+        'embedding_model',
+        'fecha_actualizacion',
+    )
+    list_filter = ('embedding_model', 'documento__fuente__origen_informacion')
+    search_fields = ('contenido', 'documento__titulo', 'documento__fuente__nombre')
+    autocomplete_fields = ('documento',)
+    list_select_related = ('documento', 'documento__fuente')
+    readonly_fields = ('fecha_creacion', 'fecha_actualizacion')
+    ordering = ('documento_id', 'indice')
