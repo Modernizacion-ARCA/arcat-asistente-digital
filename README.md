@@ -2,7 +2,7 @@
 
 MVP en evolución para consultar, en lenguaje natural, información institucional de la Agencia de Recaudación Catamarca (ARCAT). El repositorio parte de un backend Django existente y se desarrolla por fases para preservar la trazabilidad, evitar datos inventados y mantener una arquitectura simple.
 
-> **Estado actual:** Fases 1 y 2 completadas: Django + PostgreSQL + pgvector y modelo normalizado del dominio. El código heredado de usuarios, personas y utilidades se conserva. Todavía no hay información oficial ni datos DEMO precargados, RAG, OpenRouter o frontend ejecutable.
+> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración, ingesta, indexación con embeddings locales y retrieval híbrido están implementados. También está preparado el adaptador de OpenRouter con bloqueo de modelos pagos. Todavía no hay información oficial precargada, orquestación RAG, endpoint de chat ni frontend ejecutable.
 
 ## Arquitectura objetivo
 
@@ -15,8 +15,9 @@ Next.js (interfaz pública; fase posterior)
   ▼
 Django + Django REST Framework
   ├── dominio e ingesta
+  ├── embeddings locales ──► BAAI/bge-m3
   ├── recuperación RAG
-  └── proveedor LLM abstracto ──► OpenRouter
+  └── LLMProvider ──► OpenRouter
   │
   ▼
 PostgreSQL + pgvector
@@ -26,7 +27,7 @@ Next.js nunca se comunicará directamente con OpenRouter, proveedores de embeddi
 
 ### Modelo de datos
 
-El backend incluye entidades normalizadas para `Organismo`, `Area`, `Categoria`, `Plataforma`, `Tramite`, `Servicio`, `Fuente` y `Documento`. Los trámites y servicios referencian las clasificaciones compartidas sin copiar sus datos; los documentos pueden vincularse con ambos y siempre pertenecen a una fuente. Más adelante, `Fragmento` será una entidad separada que conservará el texto, su embedding y referencias al documento y a la fuente originales. Así se evita guardar vectores en entidades de negocio y cada evidencia permanece trazable.
+El backend incluye entidades normalizadas para `Organismo`, `Area`, `Categoria`, `Plataforma`, `Tramite`, `Servicio`, `Fuente`, `Documento` y `DocumentChunk`. Los trámites y servicios referencian las clasificaciones compartidas sin copiar sus datos; los documentos pueden vincularse con ambos y siempre pertenecen a una fuente. Cada `DocumentChunk` conserva texto, posición, metadata, modelo y embedding, con trazabilidad completa `Fuente → Documento → DocumentChunk`. Los vectores no se guardan en entidades de negocio.
 
 Las fuentes representan atributos verificables —origen oficial o DEMO, prioridad, estado de verificación, disponibilidad y fechas— en lugar de una valoración subjetiva de confiabilidad. `Fuente.origen_informacion` separa obligatoriamente los datos `DEMO` de los oficiales. `Documento` conserva contenido recuperado, texto extraído, metadata variable y un checksum SHA-256 validado, sin almacenar embeddings en la entidad documental.
 
@@ -42,15 +43,23 @@ Las relaciones protegidas impiden eliminar organismos o fuentes que todavía sus
 6. Enviar ese contexto al `LLMProvider`; nunca se enviará toda la base.
 7. Responder en español con enlaces y evidencias utilizadas. Cuando no haya evidencia suficiente, se indicará: “No encuentro esa información en las fuentes oficiales disponibles.”
 
-### OpenRouter, fallback y costos
+### LLM: OpenRouter
 
-La integración futura implementará una interfaz `LLMProvider`, con OpenRouter como primer adaptador. Modelo principal, fallbacks y límites se configurarán mediante variables de entorno del backend. Los modelos se intentarán en orden únicamente ante errores recuperables (timeout, límite o indisponibilidad), registrando modelo, duración, tokens, error y posición de fallback sin incluir secretos.
+`OpenRouterProvider` implementa la interfaz backend `LLMProvider` para generación de respuestas. Requiere `OPENROUTER_API_KEY` sólo al intentar generar una respuesta: migraciones, administración e ingesta pueden ejecutarse sin la clave. La clave se crea en la cuenta de OpenRouter y se copia únicamente al `.env` local; nunca debe incluirse en Git, logs, frontend ni variables públicas de Next.js.
 
-`ALLOW_PAID_MODELS=false` será el valor seguro por defecto. Antes de una llamada se validarán el contador diario, los límites por IP/sesión y los máximos de entrada/salida; si se alcanza un límite no habrá solicitud al proveedor. Ninguna clave de OpenRouter se expondrá al frontend.
+`OPENROUTER_PRIMARY_MODEL` selecciona el modelo y `OPENROUTER_FALLBACK_MODELS` admite una lista separada por comas para la etapa posterior de fallback. El valor seguro `ALLOW_PAID_MODELS=false` rechaza antes de cualquier solicitud todo identificador que no sea `openrouter/free` ni termine en `:free`, incluso los fallbacks configurados. No existe cambio automático a modelos pagos. Como segunda barrera, la clave de desarrollo debe configurarse con USD 0 de crédito en OpenRouter.
+
+### Embeddings: modelo local
+
+`LocalEmbeddingProvider` implementa `EmbeddingProvider` dentro del proceso Django. No usa OpenRouter ni requiere una API key. `EMBEDDING_MODEL` selecciona el modelo local; el valor inicial `BAAI/bge-m3` produce vectores de 1024 dimensiones, almacenados por `DocumentChunk.embedding` en PostgreSQL mediante pgvector. `EMBEDDING_DIMENSION=1024` documenta y valida ese contrato: cambiar a una dimensión distinta requiere también una migración de base de datos.
+
+La primera ejecución descarga el modelo y puede demorar. Compose conserva la caché de Hugging Face en el volumen `embedding_models`; no se crea un microservicio adicional.
 
 ### Indexación de fuentes
 
-La ingesta futura descargará HTML o PDF desde una fuente registrada, conservará URL original, fechas, contenido y metadata, extraerá y limpiará texto, calculará un checksum, dividirá en fragmentos y generará embeddings. Un checksum sin cambios evitará reprocesamientos. La reindexación podrá limitarse a un documento, trámite o categoría. No se incorporarán datos de ARCAT que no provengan de fuentes oficiales verificadas.
+La ingesta descarga HTML o PDF desde una fuente registrada, conserva URL original, fechas, contenido y metadata, extrae y limpia texto y calcula un checksum. Un checksum sin cambios evita reprocesamientos. La indexación divide ese texto, genera embeddings locales y reemplaza los fragmentos dentro de una transacción. Una firma del texto, modelo y parámetros evita regenerarlos si nada relevante cambió. No se incorporan datos de ARCAT que no provengan de fuentes oficiales verificadas.
+
+`HybridRetriever` consulta en paralelo la distancia vectorial y la búsqueda de texto completo de PostgreSQL, aplica filtros institucionales y combina ambos rankings. Así, siglas y términos exactos como ARCAT, CUIT, IIBB o TAD no dependen únicamente de similitud semántica. El origen oficial es el filtro predeterminado y `RAG_TOP_K` limita el resultado final.
 
 ## Requisitos
 
@@ -79,8 +88,17 @@ Las variables actuales son:
 | `DJANGO_CORS_ALLOWED_ORIGINS` | Orígenes frontend autorizados explícitamente. |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Orígenes confiables para solicitudes CSRF. |
 | `DJANGO_*_COOKIE_SECURE`, `DJANGO_SECURE_SSL_REDIRECT` | Controles HTTPS, habilitados por defecto en producción. |
+| `OPENROUTER_API_KEY` | Credencial backend para generación; puede quedar vacía mientras no se invoque el LLM. |
+| `OPENROUTER_BASE_URL` | Endpoint compatible con OpenAI utilizado por el adaptador. |
+| `OPENROUTER_PRIMARY_MODEL`, `OPENROUTER_FALLBACK_MODELS` | Modelo primario y lista opcional separada por comas. |
+| `ALLOW_PAID_MODELS` | Barrera local contra modelos pagos; `false` por defecto. |
+| `MAX_DAILY_LLM_REQUESTS`, `MAX_INPUT_TOKENS`, `MAX_OUTPUT_TOKENS` | Límites centralizados para los controles de consumo de la API/RAG. |
+| `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL` | Proveedor `local` y modelo cargado por Django. |
+| `EMBEDDING_DIMENSION` | Dimensión persistida por pgvector; `1024` para `BAAI/bge-m3`. |
+| `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP` | Tamaño y solapamiento iniciales, expresados en palabras. |
+| `RAG_TOP_K` | Máximo inicial de evidencias devueltas por retrieval. |
 
-Las variables futuras de proveedores (`OPENROUTER_API_KEY`, modelos y límites) se agregarán cuando exista esa integración; no se aceptan secretos en variables públicas de Next.js.
+Todos los valores se leen y validan en Django Settings. Para cambiar modelos o parámetros RAG basta editar `.env` y reiniciar el backend. No se aceptan secretos en variables públicas de Next.js.
 
 ## Ejecución con Docker
 
@@ -88,7 +106,7 @@ Las variables futuras de proveedores (`OPENROUTER_API_KEY`, modelos y límites) 
 docker compose up --build
 ```
 
-Compose inicia `postgres` con la imagen oficial de pgvector y, una vez saludable, inicia `backend`, ejecuta migraciones y sirve Django en <http://localhost:8000>. La migración inicial de `core` ejecuta `CREATE EXTENSION vector` de forma versionada. El volumen `postgres_data` mantiene los datos entre reinicios.
+Compose inicia `postgres` con la imagen oficial de pgvector y, una vez saludable, inicia `backend`, ejecuta migraciones y sirve Django en <http://localhost:8000>. La migración inicial de `core` ejecuta `CREATE EXTENSION vector` de forma versionada. Los volúmenes `postgres_data` y `embedding_models` mantienen la base y la caché del modelo local entre reinicios.
 
 El servicio `frontend` se incorporará en su fase correspondiente; no se agrega un contenedor vacío antes de que exista una aplicación Next.js ejecutable.
 
@@ -115,9 +133,46 @@ docker compose run --rm backend python manage.py makemigrations --check --dry-ru
 
 No se debe editar manualmente el esquema. PostgreSQL + pgvector es la persistencia principal; SQLite queda limitado a la suite heredada mientras los tests se migran gradualmente.
 
-## Datos, ingesta e indexación
+## Datos e ingesta
 
-Todavía no existen comandos de carga o indexación. Se añadirán después de los modelos de dominio y siempre diferenciarán explícitamente contenido `DEMO` de información oficial. Hasta entonces no debe cargarse información institucional mediante fixtures ad hoc.
+Las fuentes se crean y verifican primero desde Django Admin. La ingesta procesa sólo
+las fuentes activas y verificadas, ordenadas por prioridad:
+
+```bash
+python manage.py ingestar_fuentes
+```
+
+Para limitar la ejecución a fuentes concretas, el argumento se puede repetir:
+
+```bash
+python manage.py ingestar_fuentes --fuente 1 --fuente 3
+```
+
+El comando admite HTML, texto plano y PDF, conserva la URL original, metadata HTTP y
+texto extraído, y calcula un checksum SHA-256. Si el checksum no cambia, no vuelve a
+guardar el documento. Cada consulta actualiza la disponibilidad de la fuente; un fallo
+en una fuente no impide intentar las demás. Las descargas rechazan destinos privados o
+reservados y tienen límites de tiempo y tamaño.
+
+La procedencia `DEMO` u oficial sigue siendo la definida explícitamente en cada
+`Fuente`; la ingesta no promueve ni verifica fuentes automáticamente.
+
+Después de la ingesta, se pueden indexar todos los documentos activos pertenecientes
+a fuentes verificadas:
+
+```bash
+python manage.py indexar_documentos
+```
+
+También se puede limitar la operación a documentos concretos. La primera ejecución
+descargará el modelo local configurado:
+
+```bash
+python manage.py indexar_documentos --documento 1 --documento 3
+```
+
+Si falla la generación de embeddings, el índice anterior se conserva. La sustitución
+de fragmentos sólo comienza después de recibir y validar un vector para cada chunk.
 
 ## Tests y verificaciones
 
@@ -134,12 +189,9 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ## Próximas fases
 
-1. Administración Django.
-2. Ingesta y detección de cambios.
-3. Embeddings, fragmentos y recuperación híbrida.
-4. RAG, OpenRouter, fallback y controles de costo.
-5. API pública.
-6. Next.js y chat.
-7. Estadísticas y endurecimiento final de Docker/documentación.
+1. Orquestación RAG, fallback gratuito y controles persistentes de consumo.
+2. API pública.
+3. Next.js y chat.
+4. Estadísticas y endurecimiento final de Docker/documentación.
 
 Las inconsistencias heredadas en endpoints de persona/usuario se consideran deuda preexistente y se corregirán sólo cuando interfieran con una fase, para evitar un refactor general fuera de alcance.

@@ -1,10 +1,11 @@
 import pytest
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models.deletion import ProtectedError
 
 from organizations.models import Organismo
 from procedures.models import Tramite
-from sources.models import Documento, Fuente
+from sources.models import DocumentChunk, Documento, Fuente
 
 
 @pytest.fixture
@@ -75,3 +76,29 @@ def test_fuente_no_se_elimina_si_tiene_documentos(fuente_demo):
 
     with pytest.raises(ProtectedError):
         fuente.delete()
+
+
+@pytest.mark.django_db
+def test_fragmento_persiste_embedding_y_trazabilidad(fuente_demo):
+    _, fuente = fuente_demo
+    documento = Documento.objects.create(
+        titulo='Documento vectorial DEMO',
+        tipo=Documento.Tipo.HTML,
+        fuente=fuente,
+        url='https://demo.invalid/vectorial/',
+    )
+
+    fragmento = DocumentChunk.objects.create(
+        documento=documento,
+        contenido='Contenido fragmentado DEMO.',
+        indice=0,
+        embedding=[0.0] * settings.EMBEDDING_DIMENSION,
+        embedding_model=settings.EMBEDDING_MODEL,
+        metadata={'seccion': 'demo'},
+    )
+
+    fragmento.refresh_from_db()
+    assert fragmento.documento.fuente == fuente
+    assert fragmento.documento == documento
+    assert len(fragmento.embedding) == settings.EMBEDDING_DIMENSION
+    assert fragmento.embedding_model == settings.EMBEDDING_MODEL

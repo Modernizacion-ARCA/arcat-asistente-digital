@@ -13,6 +13,8 @@ import sys
 
 import environ
 
+from .ai import load_ai_settings
+
 ROOT_DIR = environ.Path(__file__) - 3
 PROJECT_DIR = ROOT_DIR.path('project')
 APPS_DIR = PROJECT_DIR.path('apps')
@@ -45,6 +47,25 @@ ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=['localhost', '127.0.0.
 CORS_ALLOW_ALL_ORIGINS = env.bool('DJANGO_CORS_ALLOW_ALL_ORIGINS', default=False)
 CORS_ALLOWED_ORIGINS = env.list('DJANGO_CORS_ALLOWED_ORIGINS', default=[])
 CSRF_TRUSTED_ORIGINS = env.list('DJANGO_CSRF_TRUSTED_ORIGINS', default=[])
+
+# LLM, embeddings and RAG. Provider credentials stay exclusively in Django.
+AI = load_ai_settings(env)
+OPENROUTER_API_KEY = AI.openrouter_api_key
+OPENROUTER_BASE_URL = AI.openrouter_base_url
+OPENROUTER_PRIMARY_MODEL = AI.openrouter_primary_model
+OPENROUTER_FALLBACK_MODELS = AI.openrouter_fallback_models
+ALLOW_PAID_MODELS = AI.allow_paid_models
+MAX_DAILY_LLM_REQUESTS = AI.max_daily_llm_requests
+MAX_INPUT_TOKENS = AI.max_input_tokens
+MAX_OUTPUT_TOKENS = AI.max_output_tokens
+EMBEDDING_PROVIDER = AI.embedding_provider
+EMBEDDING_MODEL = AI.embedding_model
+# BAAI/bge-m3 emits 1024-dimensional vectors. Changing this value requires a
+# matching model and a database migration for DocumentChunk.embedding.
+EMBEDDING_DIMENSION = AI.embedding_dimension
+RAG_CHUNK_SIZE = AI.rag_chunk_size
+RAG_CHUNK_OVERLAP = AI.rag_chunk_overlap
+RAG_TOP_K = AI.rag_top_k
 
 # Application definition
 
