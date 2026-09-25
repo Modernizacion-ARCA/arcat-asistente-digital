@@ -2,7 +2,7 @@
 
 MVP en evolución para consultar, en lenguaje natural, información institucional de la Agencia de Recaudación Catamarca (ARCAT). El repositorio parte de un backend Django existente y se desarrolla por fases para preservar la trazabilidad, evitar datos inventados y mantener una arquitectura simple.
 
-> **Estado actual:** Fases 1 a 3 completadas: Django + PostgreSQL + pgvector, modelo normalizado del dominio y administración Django. El código heredado de usuarios, personas y utilidades se conserva. Todavía no hay información oficial ni datos DEMO precargados, RAG, OpenRouter o frontend ejecutable.
+> **Estado actual:** Fases 1 a 4 completadas: Django + PostgreSQL + pgvector, modelo normalizado del dominio, administración Django e ingesta con detección de cambios. El código heredado de usuarios, personas y utilidades se conserva. Todavía no hay información oficial ni datos DEMO precargados, RAG, OpenRouter o frontend ejecutable.
 
 ## Arquitectura objetivo
 
@@ -115,9 +115,29 @@ docker compose run --rm backend python manage.py makemigrations --check --dry-ru
 
 No se debe editar manualmente el esquema. PostgreSQL + pgvector es la persistencia principal; SQLite queda limitado a la suite heredada mientras los tests se migran gradualmente.
 
-## Datos, ingesta e indexación
+## Datos e ingesta
 
-Todavía no existen comandos de carga o indexación. Se añadirán después de los modelos de dominio y siempre diferenciarán explícitamente contenido `DEMO` de información oficial. Hasta entonces no debe cargarse información institucional mediante fixtures ad hoc.
+Las fuentes se crean y verifican primero desde Django Admin. La ingesta procesa sólo
+las fuentes activas y verificadas, ordenadas por prioridad:
+
+```bash
+python manage.py ingestar_fuentes
+```
+
+Para limitar la ejecución a fuentes concretas, el argumento se puede repetir:
+
+```bash
+python manage.py ingestar_fuentes --fuente 1 --fuente 3
+```
+
+El comando admite HTML, texto plano y PDF, conserva la URL original, metadata HTTP y
+texto extraído, y calcula un checksum SHA-256. Si el checksum no cambia, no vuelve a
+guardar el documento. Cada consulta actualiza la disponibilidad de la fuente; un fallo
+en una fuente no impide intentar las demás. Las descargas rechazan destinos privados o
+reservados y tienen límites de tiempo y tamaño.
+
+La procedencia `DEMO` u oficial sigue siendo la definida explícitamente en cada
+`Fuente`; la ingesta no promueve ni verifica fuentes automáticamente.
 
 ## Tests y verificaciones
 
@@ -134,11 +154,10 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ## Próximas fases
 
-1. Ingesta y detección de cambios.
-2. Embeddings, fragmentos y recuperación híbrida.
-3. RAG, OpenRouter, fallback y controles de costo.
-4. API pública.
-5. Next.js y chat.
-6. Estadísticas y endurecimiento final de Docker/documentación.
+1. Embeddings, fragmentos y recuperación híbrida.
+2. RAG, OpenRouter, fallback y controles de costo.
+3. API pública.
+4. Next.js y chat.
+5. Estadísticas y endurecimiento final de Docker/documentación.
 
 Las inconsistencias heredadas en endpoints de persona/usuario se consideran deuda preexistente y se corregirán sólo cuando interfieran con una fase, para evitar un refactor general fuera de alcance.
