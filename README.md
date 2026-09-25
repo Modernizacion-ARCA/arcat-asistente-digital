@@ -2,7 +2,7 @@
 
 MVP en evolución para consultar, en lenguaje natural, información institucional de la Agencia de Recaudación Catamarca (ARCAT). El repositorio parte de un backend Django existente y se desarrolla por fases para preservar la trazabilidad, evitar datos inventados y mantener una arquitectura simple.
 
-> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración e ingesta con detección de cambios están implementados. También están preparadas las abstracciones de OpenRouter y embeddings locales, la configuración RAG y la persistencia de fragmentos vectoriales. Todavía no hay información oficial precargada, retrieval híbrido, endpoint de chat ni frontend ejecutable.
+> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración, ingesta, indexación con embeddings locales y retrieval híbrido están implementados. También está preparado el adaptador de OpenRouter con bloqueo de modelos pagos. Todavía no hay información oficial precargada, orquestación RAG, endpoint de chat ni frontend ejecutable.
 
 ## Arquitectura objetivo
 
@@ -57,7 +57,9 @@ La primera ejecución descarga el modelo y puede demorar. Compose conserva la ca
 
 ### Indexación de fuentes
 
-La ingesta descarga HTML o PDF desde una fuente registrada, conserva URL original, fechas, contenido y metadata, extrae y limpia texto y calcula un checksum. Un checksum sin cambios evita reprocesamientos. La siguiente etapa conectará el chunking y `LocalEmbeddingProvider` con la ingesta y construirá el retrieval híbrido; no se incorporarán datos de ARCAT que no provengan de fuentes oficiales verificadas.
+La ingesta descarga HTML o PDF desde una fuente registrada, conserva URL original, fechas, contenido y metadata, extrae y limpia texto y calcula un checksum. Un checksum sin cambios evita reprocesamientos. La indexación divide ese texto, genera embeddings locales y reemplaza los fragmentos dentro de una transacción. Una firma del texto, modelo y parámetros evita regenerarlos si nada relevante cambió. No se incorporan datos de ARCAT que no provengan de fuentes oficiales verificadas.
+
+`HybridRetriever` consulta en paralelo la distancia vectorial y la búsqueda de texto completo de PostgreSQL, aplica filtros institucionales y combina ambos rankings. Así, siglas y términos exactos como ARCAT, CUIT, IIBB o TAD no dependen únicamente de similitud semántica. El origen oficial es el filtro predeterminado y `RAG_TOP_K` limita el resultado final.
 
 ## Requisitos
 
@@ -155,6 +157,23 @@ reservados y tienen límites de tiempo y tamaño.
 La procedencia `DEMO` u oficial sigue siendo la definida explícitamente en cada
 `Fuente`; la ingesta no promueve ni verifica fuentes automáticamente.
 
+Después de la ingesta, se pueden indexar todos los documentos activos pertenecientes
+a fuentes verificadas:
+
+```bash
+python manage.py indexar_documentos
+```
+
+También se puede limitar la operación a documentos concretos. La primera ejecución
+descargará el modelo local configurado:
+
+```bash
+python manage.py indexar_documentos --documento 1 --documento 3
+```
+
+Si falla la generación de embeddings, el índice anterior se conserva. La sustitución
+de fragmentos sólo comienza después de recibir y validar un vector para cada chunk.
+
 ## Tests y verificaciones
 
 Desde `api/`, con dependencias de testing instaladas:
@@ -170,10 +189,9 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ## Próximas fases
 
-1. Indexación de fragmentos y recuperación híbrida (vectorial + textual + filtros).
-2. Orquestación RAG, fallback gratuito y controles persistentes de consumo.
-3. API pública.
-4. Next.js y chat.
-5. Estadísticas y endurecimiento final de Docker/documentación.
+1. Orquestación RAG, fallback gratuito y controles persistentes de consumo.
+2. API pública.
+3. Next.js y chat.
+4. Estadísticas y endurecimiento final de Docker/documentación.
 
 Las inconsistencias heredadas en endpoints de persona/usuario se consideran deuda preexistente y se corregirán sólo cuando interfieran con una fase, para evitar un refactor general fuera de alcance.
