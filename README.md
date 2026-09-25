@@ -2,7 +2,7 @@
 
 MVP en evolución para consultar, en lenguaje natural, información institucional de la Agencia de Recaudación Catamarca (ARCAT). El repositorio parte de un backend Django existente y se desarrolla por fases para preservar la trazabilidad, evitar datos inventados y mantener una arquitectura simple.
 
-> **Estado actual:** Fases 1 y 2 completadas: Django + PostgreSQL + pgvector y modelo normalizado del dominio. El código heredado de usuarios, personas y utilidades se conserva. Todavía no hay información oficial ni datos DEMO precargados, RAG, OpenRouter o frontend ejecutable.
+> **Estado actual:** Fases 1 a 3 completadas: Django + PostgreSQL + pgvector, modelo normalizado del dominio y administración Django. El código heredado de usuarios, personas y utilidades se conserva. Todavía no hay información oficial ni datos DEMO precargados, RAG, OpenRouter o frontend ejecutable.
 
 ## Arquitectura objetivo
 
@@ -134,12 +134,11 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ## Próximas fases
 
-1. Administración Django.
-2. Ingesta y detección de cambios.
-3. Embeddings, fragmentos y recuperación híbrida.
-4. RAG, OpenRouter, fallback y controles de costo.
-5. API pública.
-6. Next.js y chat.
-7. Estadísticas y endurecimiento final de Docker/documentación.
+1. Ingesta y detección de cambios.
+2. Embeddings, fragmentos y recuperación híbrida.
+3. RAG, OpenRouter, fallback y controles de costo.
+4. API pública.
+5. Next.js y chat.
+6. Estadísticas y endurecimiento final de Docker/documentación.
 
 Las inconsistencias heredadas en endpoints de persona/usuario se consideran deuda preexistente y se corregirán sólo cuando interfieran con una fase, para evitar un refactor general fuera de alcance.
