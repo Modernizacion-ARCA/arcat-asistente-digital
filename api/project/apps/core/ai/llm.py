@@ -22,6 +22,10 @@ class PaidModelNotAllowedError(LLMProviderError):
 class LLMRequestError(LLMProviderError):
     """Raised when the remote provider cannot complete a request."""
 
+    def __init__(self, message, *, recoverable=False):
+        super().__init__(message)
+        self.recoverable = recoverable
+
 
 @dataclass(frozen=True)
 class LLMResponse:
@@ -82,16 +86,24 @@ class OpenRouterProvider(LLMProvider):
         try:
             with urlopen(request, timeout=timeout) as response:
                 return json.loads(response.read().decode('utf-8'))
-        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise LLMRequestError('OpenRouter no pudo completar la solicitud.') from exc
+        except HTTPError as exc:
+            raise LLMRequestError(
+                'OpenRouter no pudo completar la solicitud.',
+                recoverable=exc.code in {408, 429, 500, 502, 503, 504},
+            ) from exc
+        except (URLError, TimeoutError) as exc:
+            raise LLMRequestError(
+                'OpenRouter no pudo completar la solicitud.',
+                recoverable=True,
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise LLMRequestError(
+                'OpenRouter devolvió una respuesta inválida.'
+            ) from exc
 
     def generate(self, messages, *, model=None):
-        if not self.api_key:
-            raise MissingLLMCredentialsError(
-                'OPENROUTER_API_KEY no está configurada para esta operación.'
-            )
         selected_model = model or self.primary_model
-        self._validate_models((selected_model,))
+        self.ensure_ready(selected_model)
         body = json.dumps({
             'model': selected_model,
             'messages': list(messages),
@@ -118,6 +130,14 @@ class OpenRouterProvider(LLMProvider):
             )
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMRequestError('OpenRouter devolvió una respuesta inválida.') from exc
+
+    def ensure_ready(self, model=None):
+        if not self.api_key:
+            raise MissingLLMCredentialsError(
+                'OPENROUTER_API_KEY no está configurada para esta operación.'
+            )
+        selected_model = model or self.primary_model
+        self._validate_models((selected_model,))
 
 
 def get_llm_provider():

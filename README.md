@@ -2,7 +2,7 @@
 
 MVP en evolución para consultar, en lenguaje natural, información institucional de la Agencia de Recaudación Catamarca (ARCAT). El repositorio parte de un backend Django existente y se desarrolla por fases para preservar la trazabilidad, evitar datos inventados y mantener una arquitectura simple.
 
-> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración, ingesta, indexación con embeddings locales y retrieval híbrido están implementados. También está preparado el adaptador de OpenRouter con bloqueo de modelos pagos. Todavía no hay información oficial precargada, orquestación RAG, endpoint de chat ni frontend ejecutable.
+> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración, ingesta, indexación con embeddings locales, retrieval híbrido y orquestación RAG están implementados. OpenRouter dispone de fallback gratuito y controles persistentes de consumo. Todavía no hay información oficial precargada, endpoint público de chat ni frontend ejecutable.
 
 ## Arquitectura objetivo
 
@@ -60,6 +60,27 @@ La primera ejecución descarga el modelo y puede demorar. Compose conserva la ca
 La ingesta descarga HTML o PDF desde una fuente registrada, conserva URL original, fechas, contenido y metadata, extrae y limpia texto y calcula un checksum. Un checksum sin cambios evita reprocesamientos. La indexación divide ese texto, genera embeddings locales y reemplaza los fragmentos dentro de una transacción. Una firma del texto, modelo y parámetros evita regenerarlos si nada relevante cambió. No se incorporan datos de ARCAT que no provengan de fuentes oficiales verificadas.
 
 `HybridRetriever` consulta en paralelo la distancia vectorial y la búsqueda de texto completo de PostgreSQL, aplica filtros institucionales y combina ambos rankings. Así, siglas y términos exactos como ARCAT, CUIT, IIBB o TAD no dependen únicamente de similitud semántica. El origen oficial es el filtro predeterminado y `RAG_TOP_K` limita el resultado final.
+
+### Orquestación RAG y consumo
+
+`RAGService` recupera evidencia, construye un contexto acotado y solicita una respuesta
+en español que debe citar los fragmentos como `[1]`, `[2]`, etc. La respuesta devuelve
+además título, fuente y URL de cada evidencia. Cuando no existen fragmentos utilizables,
+no invoca al LLM y responde: “No encuentro esa información en las fuentes oficiales
+disponibles.”
+
+`LLMService` aplica `MAX_INPUT_TOKENS` antes de cualquier llamada mediante una
+estimación conservadora basada en bytes UTF-8, envía `MAX_OUTPUT_TOKENS` al proveedor y
+reserva en base de datos cada solicitud contra `MAX_DAILY_LLM_REQUESTS`. Cada intento
+registra modelo, posición de fallback, duración, tokens y código de error, pero nunca
+guarda prompts, respuestas, claves ni datos de la persona usuaria.
+
+Los fallbacks se intentan en el orden de `OPENROUTER_FALLBACK_MODELS` únicamente ante
+timeouts, problemas de red, rate limiting, indisponibilidad o errores 5xx recuperables.
+Errores de autenticación, configuración, solicitud o formato de respuesta no activan
+otro modelo. Con `ALLOW_PAID_MODELS=false`, el constructor de
+OpenRouter rechaza toda la cadena si contiene un modelo que no sea explícitamente
+gratuito; por lo tanto, un fallo nunca provoca un salto silencioso a un modelo pago.
 
 ## Requisitos
 
@@ -189,9 +210,24 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ## Próximas fases
 
-1. Orquestación RAG, fallback gratuito y controles persistentes de consumo.
-2. API pública.
-3. Next.js y chat.
-4. Estadísticas y endurecimiento final de Docker/documentación.
+### Qué falta
+
+1. **API pública:** endpoint REST para preguntas, validación de entrada, identificación
+   anónima de sesión/IP para rate limiting y serialización de respuesta con evidencias.
+2. **Evaluación RAG:** conjunto versionado de preguntas esperadas, medición de
+   recuperación, ajuste de `top-k`, chunking y umbral mínimo de evidencia.
+3. **Frontend:** aplicación Next.js accesible que consuma exclusivamente la API Django;
+   nunca OpenRouter ni los modelos de embeddings de forma directa.
+4. **Operación:** tareas programadas de ingesta/indexación, observabilidad, retención de
+   registros, backups y endurecimiento de producción.
+5. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
+   revisión, no corresponde presentar respuestas como información institucional real.
+
+### Cómo seguimos
+
+La próxima entrega debería implementar primero la **API pública de consulta** sobre
+`RAGService`, sin sumar todavía el frontend. Después se debe construir el conjunto de
+evaluación y fijar umbrales de evidencia antes de exponer el chat. Recién entonces se
+incorpora Next.js y, finalmente, automatización operativa y métricas.
 
 Las inconsistencias heredadas en endpoints de persona/usuario se consideran deuda preexistente y se corregirán sólo cuando interfieran con una fase, para evitar un refactor general fuera de alcance.
