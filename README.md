@@ -197,6 +197,38 @@ python manage.py indexar_documentos --documento 1 --documento 3
 Si falla la generación de embeddings, el índice anterior se conserva. La sustitución
 de fragmentos sólo comienza después de recibir y validar un vector para cada chunk.
 
+## Catálogo candidato de trámites ARCAT
+
+Se incorporó `data/catalogs/arcat-tramites-candidatos-v1.json` con los diez registros
+aportados para iniciar el relevamiento de ARCAT, Rentas y TAD. El archivo está marcado
+deliberadamente como `PENDING_SOURCE_VERIFICATION`: **no se carga en los modelos, no se
+indexa y no puede aparecer en la API pública**. Tener dominios oficiales como referencia
+no sustituye la comprobación de cada nombre, descripción, requisito, vigencia y URL.
+
+La estructura y la allowlist de hosts se validan con:
+
+```bash
+python manage.py validar_catalogo_arcat \
+  --archivo data/catalogs/arcat-tramites-candidatos-v1.json
+```
+
+El siguiente comando falla mientras el borrador no esté aprobado, por lo que puede
+usarse como barrera antes de cualquier futura importación:
+
+```bash
+python manage.py validar_catalogo_arcat \
+  --archivo data/catalogs/arcat-tramites-candidatos-v1.json \
+  --require-verified
+```
+
+Para promover una versión se debe contrastar registro por registro contra
+`arcat.gob.ar`, `dgrentas.arcat.gob.ar` y `tad.catamarca.gob.ar`, completar los campos
+vacíos sólo cuando la fuente los publique, guardar la URL específica y fecha de consulta,
+y realizar revisión humana. Luego se crea una nueva versión del archivo; no se reescribe
+la versión usada como evidencia histórica. El acceso de red de este entorno fue rechazado
+por el proxy, por lo que en esta entrega se preservó el contenido como borrador y no se
+afirma que haya sido verificado online.
+
 ## API pública de consulta
 
 El endpoint público acepta únicamente JSON y no requiere autenticación:
@@ -285,16 +317,19 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ### Qué falta
 
-1. **Dataset oficial y criterios de aceptación:** redactar con referentes de ARCAT casos
+1. **Verificación del catálogo candidato:** contrastar los diez trámites con las páginas
+   oficiales, capturar URLs específicas, vigencia y campos faltantes, y aprobar una nueva
+   versión antes de importarla o indexarla.
+2. **Dataset oficial y criterios de aceptación:** redactar con referentes de ARCAT casos
    reales revisados, fijar baselines y recién entonces ajustar `top-k`, chunking y el
    umbral mínimo de evidencia.
-2. **Rate limiting distribuido:** usar un caché compartido (por ejemplo Redis) antes de
+3. **Rate limiting distribuido:** usar un caché compartido (por ejemplo Redis) antes de
    ejecutar múltiples réplicas; el caché local actual sólo coordina un proceso.
-3. **Frontend:** aplicación Next.js accesible que consuma exclusivamente la API Django;
+4. **Frontend:** aplicación Next.js accesible que consuma exclusivamente la API Django;
    nunca OpenRouter ni los modelos de embeddings de forma directa.
-4. **Operación:** tareas programadas de ingesta/indexación, observabilidad, retención de
+5. **Operación:** tareas programadas de ingesta/indexación, observabilidad, retención de
    registros, backups y endurecimiento de producción.
-5. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
+6. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
    revisión, no corresponde presentar respuestas como información institucional real.
 
 ### Cómo seguimos
