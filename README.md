@@ -2,7 +2,7 @@
 
 MVP en evolución para consultar, en lenguaje natural, información institucional de la Agencia de Recaudación Catamarca (ARCAT). El repositorio parte de un backend Django existente y se desarrolla por fases para preservar la trazabilidad, evitar datos inventados y mantener una arquitectura simple.
 
-> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración, ingesta, indexación con embeddings locales, retrieval híbrido y orquestación RAG están implementados. OpenRouter dispone de fallback gratuito y controles persistentes de consumo. Todavía no hay información oficial precargada, endpoint público de chat ni frontend ejecutable.
+> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración, ingesta, indexación con embeddings locales, retrieval híbrido, orquestación RAG y API pública de consulta están implementados. OpenRouter dispone de fallback gratuito y controles persistentes de consumo. Todavía no hay información oficial precargada, evaluación RAG versionada ni frontend ejecutable.
 
 ## Arquitectura objetivo
 
@@ -118,6 +118,8 @@ Las variables actuales son:
 | `EMBEDDING_DIMENSION` | Dimensión persistida por pgvector; `1024` para `BAAI/bge-m3`. |
 | `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP` | Tamaño y solapamiento iniciales, expresados en palabras. |
 | `RAG_TOP_K` | Máximo inicial de evidencias devueltas por retrieval. |
+| `RAG_MAX_QUESTION_LENGTH` | Longitud máxima aceptada por la API pública. |
+| `RAG_API_RATE_LIMIT` | Límite por identidad anónima; por defecto `10/hour`. |
 
 Todos los valores se leen y validan en Django Settings. Para cambiar modelos o parámetros RAG basta editar `.env` y reiniciar el backend. No se aceptan secretos en variables públicas de Next.js.
 
@@ -195,6 +197,46 @@ python manage.py indexar_documentos --documento 1 --documento 3
 Si falla la generación de embeddings, el índice anterior se conserva. La sustitución
 de fragmentos sólo comienza después de recibir y validar un vector para cada chunk.
 
+## API pública de consulta
+
+El endpoint público acepta únicamente JSON y no requiere autenticación:
+
+```http
+POST /api/v1/asistente/consultar/
+Content-Type: application/json
+
+{
+  "pregunta": "¿Qué documentación necesito?",
+  "organismo_id": 1,
+  "categoria_id": 2
+}
+```
+
+`organismo_id` y `categoria_id` son filtros opcionales. La procedencia no puede ser
+elegida por el cliente: la API consulta fuentes oficiales de manera predeterminada.
+La respuesta incluye el texto, el modelo utilizado y evidencias trazables:
+
+```json
+{
+  "respuesta": "Respuesta basada en evidencia [1]",
+  "evidencias": [
+    {
+      "fragmento_id": 15,
+      "documento": "Título del documento",
+      "fuente": "Fuente oficial",
+      "url": "https://dominio-oficial.example/documento"
+    }
+  ],
+  "modelo": "openrouter/free"
+}
+```
+
+La pregunta se limita mediante `RAG_MAX_QUESTION_LENGTH`. El throttle usa la sesión o
+IP de la solicitud sólo para derivar un HMAC irreversible; la identidad original no se
+guarda en logs ni base de datos. `RAG_API_RATE_LIMIT` controla la frecuencia. Los
+detalles internos de OpenRouter nunca se devuelven: los límites producen HTTP 429 y la
+indisponibilidad del proveedor HTTP 503 con mensajes sanitizados.
+
 ## Tests y verificaciones
 
 Desde `api/`, con dependencias de testing instaladas:
@@ -212,10 +254,10 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ### Qué falta
 
-1. **API pública:** endpoint REST para preguntas, validación de entrada, identificación
-   anónima de sesión/IP para rate limiting y serialización de respuesta con evidencias.
-2. **Evaluación RAG:** conjunto versionado de preguntas esperadas, medición de
+1. **Evaluación RAG:** conjunto versionado de preguntas esperadas, medición de
    recuperación, ajuste de `top-k`, chunking y umbral mínimo de evidencia.
+2. **Rate limiting distribuido:** usar un caché compartido (por ejemplo Redis) antes de
+   ejecutar múltiples réplicas; el caché local actual sólo coordina un proceso.
 3. **Frontend:** aplicación Next.js accesible que consuma exclusivamente la API Django;
    nunca OpenRouter ni los modelos de embeddings de forma directa.
 4. **Operación:** tareas programadas de ingesta/indexación, observabilidad, retención de
@@ -225,9 +267,9 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ### Cómo seguimos
 
-La próxima entrega debería implementar primero la **API pública de consulta** sobre
-`RAGService`, sin sumar todavía el frontend. Después se debe construir el conjunto de
-evaluación y fijar umbrales de evidencia antes de exponer el chat. Recién entonces se
-incorpora Next.js y, finalmente, automatización operativa y métricas.
+La próxima entrega debería construir el **conjunto de evaluación RAG** y fijar umbrales
+de evidencia antes de crear el chat. En paralelo se puede preparar Redis para que el
+throttle sea consistente entre réplicas. Después se incorpora Next.js y, finalmente,
+automatización operativa y métricas.
 
 Las inconsistencias heredadas en endpoints de persona/usuario se consideran deuda preexistente y se corregirán sólo cuando interfieran con una fase, para evitar un refactor general fuera de alcance.

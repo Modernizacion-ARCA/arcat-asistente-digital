@@ -44,6 +44,8 @@ services:
       RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-600}
       RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-80}
       RAG_TOP_K: ${RAG_TOP_K:-8}
+      RAG_MAX_QUESTION_LENGTH: ${RAG_MAX_QUESTION_LENGTH:-1000}
+      RAG_API_RATE_LIMIT: ${RAG_API_RATE_LIMIT:-10/hour}
       HF_HOME: /var/cache/huggingface
     volumes:
       - embedding_models:/var/cache/huggingface

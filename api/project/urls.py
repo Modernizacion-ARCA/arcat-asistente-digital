@@ -20,6 +20,7 @@ from oauth2_provider.urls import base_urlpatterns
 from django.urls import path, include
 from project.router import router
 from usuario.api import RegistroUsuarioAPIView
+from sources.api import RAGQuestionAPIView
 from django.conf import settings
 
 admin.site.site_header = getattr(settings, 'PROJECT_NAME_HEADER')
@@ -38,6 +39,7 @@ urlpatterns = [
                   path('oauth2/', include((base_urlpatterns, 'oauth2_provider'), namespace='oauth2_provider')),
                   path('auth/', include('rest_framework_social_oauth2.urls', namespace='auth-api')),
                   path('api/v1/usuario/registro/', RegistroUsuarioAPIView.as_view(), name='registro_usuario'),
+                  path('api/v1/asistente/consultar/', RAGQuestionAPIView.as_view(), name='rag_consultar'),
                   path('api/v1/', include(router.urls)),
               ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

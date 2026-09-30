@@ -66,6 +66,8 @@ EMBEDDING_DIMENSION = AI.embedding_dimension
 RAG_CHUNK_SIZE = AI.rag_chunk_size
 RAG_CHUNK_OVERLAP = AI.rag_chunk_overlap
 RAG_TOP_K = AI.rag_top_k
+RAG_MAX_QUESTION_LENGTH = AI.rag_max_question_length
+RAG_API_RATE_LIMIT = AI.rag_api_rate_limit
 
 # Application definition
 
@@ -220,6 +222,9 @@ REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': ('rest_framework_json_api.renderers.JSONRenderer',),
     'DEFAULT_METADATA_CLASS': 'rest_framework_json_api.metadata.JSONAPIMetadata',
     'NON_FIELD_ERRORS_KEY': 'error_messages'
+}
+REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+    'rag_anon': RAG_API_RATE_LIMIT,
 }
 
 ACTIVAR_HERRAMIENTAS_DEBUGGING = env.bool('ACTIVAR_HERRAMIENTAS_DEBUGGING', default=False)

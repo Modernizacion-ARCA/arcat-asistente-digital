@@ -25,6 +25,8 @@ def test_carga_y_parsea_configuracion_ai(monkeypatch):
         'RAG_CHUNK_SIZE': '120',
         'RAG_CHUNK_OVERLAP': '20',
         'RAG_TOP_K': '4',
+        'RAG_MAX_QUESTION_LENGTH': '500',
+        'RAG_API_RATE_LIMIT': '7/hour',
     }
     for name, value in values.items():
         monkeypatch.setenv(name, value)
@@ -42,6 +44,8 @@ def test_carga_y_parsea_configuracion_ai(monkeypatch):
     assert config.rag_chunk_size == 120
     assert config.rag_chunk_overlap == 20
     assert config.rag_top_k == 4
+    assert config.rag_max_question_length == 500
+    assert config.rag_api_rate_limit == '7/hour'
 
 
 def test_rechaza_overlap_invalido(monkeypatch):
@@ -49,6 +53,13 @@ def test_rechaza_overlap_invalido(monkeypatch):
     monkeypatch.setenv('RAG_CHUNK_OVERLAP', '100')
 
     with pytest.raises(ValueError, match='RAG_CHUNK_OVERLAP'):
+        load_ai_settings(environ.Env())
+
+
+def test_rechaza_rate_limit_invalido(monkeypatch):
+    monkeypatch.setenv('RAG_API_RATE_LIMIT', 'sin-formato')
+
+    with pytest.raises(ValueError, match='RAG_API_RATE_LIMIT'):
         load_ai_settings(environ.Env())
 
 

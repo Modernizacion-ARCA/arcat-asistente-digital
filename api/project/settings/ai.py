@@ -8,6 +8,18 @@ def _positive_int(env, name, default):
     return value
 
 
+def _throttle_rate(env, name, default):
+    value = env.str(name, default=default)
+    try:
+        requests, period = value.split('/', 1)
+        valid = int(requests) > 0 and period[0].lower() in {'s', 'm', 'h', 'd'}
+    except (ValueError, IndexError):
+        valid = False
+    if not valid:
+        raise ValueError(f'{name} debe tener un formato como 10/hour.')
+    return value
+
+
 @dataclass(frozen=True)
 class AISettings:
     openrouter_api_key: str
@@ -24,6 +36,8 @@ class AISettings:
     rag_chunk_size: int
     rag_chunk_overlap: int
     rag_top_k: int
+    rag_max_question_length: int
+    rag_api_rate_limit: str
 
 
 def load_ai_settings(env):
@@ -55,4 +69,6 @@ def load_ai_settings(env):
         rag_chunk_size=chunk_size,
         rag_chunk_overlap=chunk_overlap,
         rag_top_k=_positive_int(env, 'RAG_TOP_K', 8),
+        rag_max_question_length=_positive_int(env, 'RAG_MAX_QUESTION_LENGTH', 1000),
+        rag_api_rate_limit=_throttle_rate(env, 'RAG_API_RATE_LIMIT', '10/hour'),
     )
