@@ -2,7 +2,7 @@
 
 MVP en evolución para consultar, en lenguaje natural, información institucional de la Agencia de Recaudación Catamarca (ARCAT). El repositorio parte de un backend Django existente y se desarrolla por fases para preservar la trazabilidad, evitar datos inventados y mantener una arquitectura simple.
 
-> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración, ingesta, indexación con embeddings locales, retrieval híbrido, orquestación RAG y API pública de consulta están implementados. OpenRouter dispone de fallback gratuito y controles persistentes de consumo. Todavía no hay información oficial precargada, evaluación RAG versionada ni frontend ejecutable.
+> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración, ingesta, indexación con embeddings locales, retrieval híbrido, orquestación RAG, API pública y evaluación reproducible de recuperación están implementados. OpenRouter dispone de fallback gratuito y controles persistentes de consumo. Todavía no hay información oficial precargada, dataset oficial validado ni frontend ejecutable.
 
 ## Arquitectura objetivo
 
@@ -237,6 +237,37 @@ guarda en logs ni base de datos. `RAG_API_RATE_LIMIT` controla la frecuencia. Lo
 detalles internos de OpenRouter nunca se devuelven: los límites producen HTTP 429 y la
 indisponibilidad del proveedor HTTP 503 con mensajes sanitizados.
 
+## Evaluación de recuperación
+
+La evaluación es offline y **no invoca al LLM ni consume OpenRouter**. Cada dataset JSON
+versionado declara una pregunta, una o más URLs documentales esperadas, términos que
+deberían aparecer en los fragmentos y la procedencia (`OFICIAL` o `DEMO`). El comando
+ejecuta el mismo `HybridRetriever` utilizado por la API:
+
+```bash
+python manage.py evaluar_rag \
+  --dataset evaluation/datasets/demo-v1.json
+```
+
+El reporte JSON incluye resultados por caso y tres métricas agregadas:
+
+- `hit_rate`: proporción de preguntas que recuperan al menos un documento esperado;
+- `mean_reciprocal_rank`: premia que la primera evidencia esperada aparezca arriba;
+- `mean_term_coverage`: cobertura de términos esperados dentro de los chunks recuperados.
+
+Para usarlo como control de CI puede indicarse un umbral explícito:
+
+```bash
+python manage.py evaluar_rag \
+  --dataset evaluation/datasets/demo-v1.json \
+  --fail-below-hit-rate 0.80
+```
+
+El archivo incluido es exclusivamente DEMO y sólo verifica el mecanismo. No establece
+un benchmark institucional ni justifica todavía cambiar `RAG_TOP_K`, el chunking o un
+umbral de evidencia. Esos valores deben ajustarse recién con preguntas y documentos
+oficiales revisados, conservando cada versión del dataset para comparar regresiones.
+
 ## Tests y verificaciones
 
 Desde `api/`, con dependencias de testing instaladas:
@@ -254,8 +285,9 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ### Qué falta
 
-1. **Evaluación RAG:** conjunto versionado de preguntas esperadas, medición de
-   recuperación, ajuste de `top-k`, chunking y umbral mínimo de evidencia.
+1. **Dataset oficial y criterios de aceptación:** redactar con referentes de ARCAT casos
+   reales revisados, fijar baselines y recién entonces ajustar `top-k`, chunking y el
+   umbral mínimo de evidencia.
 2. **Rate limiting distribuido:** usar un caché compartido (por ejemplo Redis) antes de
    ejecutar múltiples réplicas; el caché local actual sólo coordina un proceso.
 3. **Frontend:** aplicación Next.js accesible que consuma exclusivamente la API Django;
@@ -267,9 +299,10 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ### Cómo seguimos
 
-La próxima entrega debería construir el **conjunto de evaluación RAG** y fijar umbrales
-de evidencia antes de crear el chat. En paralelo se puede preparar Redis para que el
-throttle sea consistente entre réplicas. Después se incorpora Next.js y, finalmente,
-automatización operativa y métricas.
+La próxima entrega debería cargar fuentes oficiales revisadas y construir con referentes
+el **dataset institucional de evaluación**, sin inventar respuestas desde desarrollo.
+Con ese baseline se podrán fijar umbrales de evidencia antes de crear el chat. En
+paralelo se puede preparar Redis para que el throttle sea consistente entre réplicas.
+Después se incorpora Next.js y, finalmente, automatización operativa y métricas.
 
 Las inconsistencias heredadas en endpoints de persona/usuario se consideran deuda preexistente y se corregirán sólo cuando interfieran con una fase, para evitar un refactor general fuera de alcance.
