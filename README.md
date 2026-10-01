@@ -223,10 +223,14 @@ python manage.py actualizar_conocimiento --force-index
 ```
 
 El comando intenta todas las fuentes seleccionadas, imprime un resumen JSON apto para
-logs y finaliza con código distinto de cero si alguna falla. Debe programarse desde el
-orquestador de despliegue (cron, systemd timer o tarea de la plataforma), con una única
-ejecución concurrente y alertas sobre fallos; no requiere un servicio de embeddings
-separado.
+logs y finaliza con código distinto de cero si alguna falla. Un bloqueo en el cache
+compartido impide que dos réplicas actualicen la base de conocimiento simultáneamente;
+si Redis no está disponible, la ejecución falla de forma segura. El bloqueo vence en
+una hora para permitir la recuperación ante una terminación abrupta.
+
+Debe programarse desde el orquestador de despliegue (cron, systemd timer o tarea de la
+plataforma) y configurarse con alertas sobre fallos. No requiere un servicio de
+embeddings separado.
 
 ## Catálogo candidato de trámites ARCAT
 
@@ -405,8 +409,7 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 3. **Validación de experiencia:** pruebas con personas usuarias, revisión de lenguaje
    claro, accesibilidad automatizada y ajustes responsive sobre dispositivos reales.
 4. **Operación:** conectar `actualizar_conocimiento` al scheduler del entorno, sumar
-   exclusión distribuida entre réplicas, alertas, métricas, retención de registros,
-   backups y endurecimiento de producción.
+   alertas, métricas, retención de registros, backups y endurecimiento de producción.
 5. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
    revisión, no corresponde presentar respuestas como información institucional real.
 

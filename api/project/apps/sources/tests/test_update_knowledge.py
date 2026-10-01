@@ -3,7 +3,9 @@ from io import StringIO
 from types import SimpleNamespace
 
 import pytest
+from django.core.cache import cache
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 from organizations.models import Organismo
 from sources.models import Fuente
@@ -36,6 +38,13 @@ def official_source(db):
         origen_informacion=Fuente.OrigenInformacion.OFICIAL,
     )
     return source
+
+
+@pytest.fixture(autouse=True)
+def clear_update_lock():
+    cache.delete('sources:actualizar_conocimiento:lock')
+    yield
+    cache.delete('sources:actualizar_conocimiento:lock')
 
 
 @pytest.mark.django_db
@@ -89,3 +98,54 @@ def test_actualizacion_forzada_reindexa_documento(official_source, mocker):
     call_command('actualizar_conocimiento', '--force-index')
 
     indexer.index.assert_called_once_with(document, force=True)
+
+
+@pytest.mark.django_db
+def test_actualizacion_rechaza_ejecuciones_concurrentes(official_source, mocker):
+    cache.set('sources:actualizar_conocimiento:lock', 'otra-ejecucion', 60)
+    ingestion_class = mocker.patch(
+        'sources.management.commands.actualizar_conocimiento.IngestionService'
+    )
+
+    with pytest.raises(CommandError, match='otra actualización'):
+        call_command('actualizar_conocimiento')
+
+    ingestion_class.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_actualizacion_falla_cerrada_si_el_cache_no_responde(
+    official_source,
+    mocker,
+):
+    mocker.patch(
+        'sources.management.commands.actualizar_conocimiento.cache.add',
+        side_effect=ConnectionError,
+    )
+    ingestion_class = mocker.patch(
+        'sources.management.commands.actualizar_conocimiento.IngestionService'
+    )
+
+    with pytest.raises(CommandError, match='bloqueo de actualización'):
+        call_command('actualizar_conocimiento')
+
+    ingestion_class.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_actualizacion_libera_el_bloqueo_al_finalizar(official_source, mocker):
+    ingestion = mocker.patch(
+        'sources.management.commands.actualizar_conocimiento.IngestionService'
+    ).return_value
+    ingestion.ingest.return_value = SimpleNamespace(
+        changed=False,
+        documento=object(),
+    )
+    indexer = mocker.patch(
+        'sources.management.commands.actualizar_conocimiento.DocumentIndexer'
+    ).return_value
+    indexer.index.return_value = SimpleNamespace(changed=False)
+
+    call_command('actualizar_conocimiento')
+
+    assert cache.get('sources:actualizar_conocimiento:lock') is None

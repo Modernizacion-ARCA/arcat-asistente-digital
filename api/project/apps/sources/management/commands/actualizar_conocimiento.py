@@ -1,5 +1,7 @@
 import json
+from uuid import uuid4
 
+from django.core.cache import cache
 from django.core.management.base import BaseCommand, CommandError
 
 from sources.indexing import DocumentIndexer, IndexingError
@@ -9,6 +11,8 @@ from sources.models import Fuente
 
 class Command(BaseCommand):
     help = 'Ingiere fuentes oficiales y reindexa únicamente documentos modificados.'
+    lock_key = 'sources:actualizar_conocimiento:lock'
+    lock_timeout = 60 * 60
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -25,6 +29,28 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        lock_token = uuid4().hex
+        try:
+            acquired = cache.add(
+                self.lock_key,
+                lock_token,
+                timeout=self.lock_timeout,
+            )
+        except Exception as exc:
+            raise CommandError(
+                'No se pudo comprobar el bloqueo de actualización compartido.'
+            ) from exc
+        if not acquired:
+            raise CommandError(
+                'Ya existe otra actualización de conocimiento en ejecución.'
+            )
+
+        try:
+            return self._update(options)
+        finally:
+            self._release_lock(lock_token)
+
+    def _update(self, options):
         sources = Fuente.objects.filter(
             activo=True,
             origen_informacion=Fuente.OrigenInformacion.OFICIAL,
@@ -70,3 +96,12 @@ class Command(BaseCommand):
             raise CommandError(
                 f'Fallaron {len(summary["errors"])} fuente(s); revise stderr.'
             )
+
+    def _release_lock(self, lock_token):
+        try:
+            if cache.get(self.lock_key) == lock_token:
+                cache.delete(self.lock_key)
+        except Exception:
+            self.stderr.write(self.style.WARNING(
+                'No se pudo liberar el bloqueo; expirará automáticamente.'
+            ))
