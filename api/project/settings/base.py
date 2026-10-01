@@ -134,6 +134,25 @@ DATABASES = {
     )
 }
 
+CACHE_URL = env.str('DJANGO_CACHE_URL', default='').strip()
+if CACHE_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': CACHE_URL,
+            'KEY_PREFIX': 'arcat',
+            'TIMEOUT': 300,
+        },
+    }
+else:
+    # Suitable for a single local/test process only. Production requires Redis.
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'arcat-local-cache',
+        },
+    }
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',

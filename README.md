@@ -109,6 +109,7 @@ Las variables actuales son:
 | `DJANGO_CORS_ALLOWED_ORIGINS` | Orígenes frontend autorizados explícitamente. |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Orígenes confiables para solicitudes CSRF. |
 | `DJANGO_*_COOKIE_SECURE`, `DJANGO_SECURE_SSL_REDIRECT` | Controles HTTPS, habilitados por defecto en producción. |
+| `DJANGO_CACHE_URL` | Redis compartido para throttling; obligatorio en producción. |
 | `OPENROUTER_API_KEY` | Credencial backend para generación; puede quedar vacía mientras no se invoque el LLM. |
 | `OPENROUTER_BASE_URL` | Endpoint compatible con OpenAI utilizado por el adaptador. |
 | `OPENROUTER_PRIMARY_MODEL`, `OPENROUTER_FALLBACK_MODELS` | Modelo primario y lista opcional separada por comas. |
@@ -292,6 +293,13 @@ guarda en logs ni base de datos. `RAG_API_RATE_LIMIT` controla la frecuencia. Lo
 detalles internos de OpenRouter nunca se devuelven: los límites producen HTTP 429 y la
 indisponibilidad del proveedor HTTP 503 con mensajes sanitizados.
 
+Compose incluye Redis sin publicar su puerto y configura `DJANGO_CACHE_URL` en el
+backend. Esto permite que varias réplicas compartan el historial del throttle. Si Redis
+falla, el endpoint responde HTTP 503 en vez de omitir el límite. Desarrollo y tests
+pueden dejar la variable vacía para usar memoria local, pero settings de producción
+rechaza explícitamente arrancar sin un Redis configurado. Los datos del throttle son
+efímeros y no requieren persistencia en disco.
+
 ## Evaluación de recuperación
 
 La evaluación es offline y **no invoca al LLM ni consume OpenRouter**. Cada dataset JSON
@@ -346,13 +354,11 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 2. **Dataset oficial y criterios de aceptación:** redactar con referentes de ARCAT casos
    reales revisados, fijar baselines y recién entonces ajustar `top-k`, chunking y el
    umbral mínimo de evidencia.
-3. **Rate limiting distribuido:** usar un caché compartido (por ejemplo Redis) antes de
-   ejecutar múltiples réplicas; el caché local actual sólo coordina un proceso.
-4. **Frontend:** aplicación Next.js accesible que consuma exclusivamente la API Django;
+3. **Frontend:** aplicación Next.js accesible que consuma exclusivamente la API Django;
    nunca OpenRouter ni los modelos de embeddings de forma directa.
-5. **Operación:** tareas programadas de ingesta/indexación, observabilidad, retención de
+4. **Operación:** tareas programadas de ingesta/indexación, observabilidad, retención de
    registros, backups y endurecimiento de producción.
-6. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
+5. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
    revisión, no corresponde presentar respuestas como información institucional real.
 
 ### Cómo seguimos
@@ -360,7 +366,7 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 La próxima entrega debería verificar fuentes oficiales y construir con referentes
 el **dataset institucional de evaluación**, sin inventar respuestas desde desarrollo.
 Con ese baseline se podrán fijar umbrales de evidencia antes de crear el chat. En
-paralelo se puede preparar Redis para que el throttle sea consistente entre réplicas.
-Después se incorpora Next.js y, finalmente, automatización operativa y métricas.
+paralelo se puede diseñar el frontend contra el contrato público ya disponible. Después
+se incorpora Next.js y, finalmente, automatización operativa y métricas.
 
 Las inconsistencias heredadas en endpoints de persona/usuario se consideran deuda preexistente y se corregirán sólo cuando interfieran con una fase, para evitar un refactor general fuera de alcance.

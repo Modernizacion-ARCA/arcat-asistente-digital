@@ -5,9 +5,14 @@ from django.core.cache import cache
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
+from redis.exceptions import RedisError
 
 from core.ai.llm import MissingLLMCredentialsError
 from sources.rag import RAGAnswer
+from sources.throttling import (
+    HashedRAGThrottle,
+    ThrottleInfrastructureUnavailable,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -98,3 +103,19 @@ def test_throttle_publico_limita_por_identidad_anonima(api_client, mocker, setti
     assert first.status_code == 200
     assert second.status_code == 429
     assert service.answer.call_count == 1
+
+
+def test_throttle_falla_cerrado_si_redis_no_esta_disponible(mocker):
+    throttle = HashedRAGThrottle()
+    mocker.patch.object(
+        throttle.cache,
+        'get',
+        side_effect=RedisError('Redis DEMO no disponible'),
+    )
+    request = SimpleNamespace(
+        session=SimpleNamespace(session_key=None),
+        META={'REMOTE_ADDR': '192.0.2.1'},
+    )
+
+    with pytest.raises(ThrottleInfrastructureUnavailable):
+        throttle.allow_request(request, view=None)
