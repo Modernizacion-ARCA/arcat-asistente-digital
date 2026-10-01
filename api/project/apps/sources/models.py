@@ -173,3 +173,33 @@ class DocumentChunk(models.Model):
 
     def __str__(self):
         return f'{self.documento} — fragmento {self.indice}'
+
+
+class KnowledgeUpdateRun(models.Model):
+    class Estado(models.TextChoices):
+        EN_CURSO = 'EN_CURSO', 'En curso'
+        EXITOSA = 'EXITOSA', 'Exitosa'
+        ERROR = 'ERROR', 'Con errores'
+
+    estado = models.CharField(
+        max_length=10,
+        choices=Estado.choices,
+        default=Estado.EN_CURSO,
+        db_index=True,
+    )
+    fuentes_total = models.PositiveIntegerField(default=0)
+    documentos_actualizados = models.PositiveIntegerField(default=0)
+    documentos_sin_cambios = models.PositiveIntegerField(default=0)
+    documentos_indexados = models.PositiveIntegerField(default=0)
+    errores = models.PositiveIntegerField(default=0)
+    detalle_errores = models.JSONField(default=list, blank=True)
+    fecha_inicio = models.DateTimeField(auto_now_add=True, db_index=True)
+    fecha_fin = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ('-fecha_inicio',)
+        verbose_name = 'Actualización de conocimiento'
+        verbose_name_plural = 'Actualizaciones de conocimiento'
+
+    def __str__(self):
+        return f'{self.fecha_inicio}: {self.get_estado_display()}'

@@ -3,10 +3,11 @@ from uuid import uuid4
 
 from django.core.cache import cache
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 
 from sources.indexing import DocumentIndexer, IndexingError
 from sources.ingestion import IngestionError, IngestionService
-from sources.models import Fuente
+from sources.models import Fuente, KnowledgeUpdateRun
 
 
 class Command(BaseCommand):
@@ -63,39 +64,70 @@ class Command(BaseCommand):
                 'No hay fuentes oficiales, activas y verificadas para actualizar.'
             )
 
-        ingestion = IngestionService()
-        indexer = DocumentIndexer()
+        run = KnowledgeUpdateRun.objects.create(fuentes_total=sources.count())
         summary = {
-            'sources': sources.count(),
+            'run_id': run.pk,
+            'sources': run.fuentes_total,
             'ingested': 0,
             'unchanged': 0,
             'indexed': 0,
             'errors': [],
         }
-        for source in sources.iterator():
-            try:
-                ingestion_result = ingestion.ingest(source)
-                summary['ingested'] += int(ingestion_result.changed)
-                summary['unchanged'] += int(not ingestion_result.changed)
-                index_result = indexer.index(
-                    ingestion_result.documento,
-                    force=options['force_index'],
-                )
-                summary['indexed'] += int(index_result.changed)
-            except (IngestionError, IndexingError, ValueError) as exc:
-                summary['errors'].append({
-                    'source_id': source.pk,
-                    'error': type(exc).__name__,
-                })
-                self.stderr.write(self.style.ERROR(
-                    f'Fuente {source.pk} ({source.nombre}): {exc}'
-                ))
+        try:
+            ingestion = IngestionService()
+            indexer = DocumentIndexer()
+            for source in sources.iterator():
+                try:
+                    ingestion_result = ingestion.ingest(source)
+                    summary['ingested'] += int(ingestion_result.changed)
+                    summary['unchanged'] += int(not ingestion_result.changed)
+                    index_result = indexer.index(
+                        ingestion_result.documento,
+                        force=options['force_index'],
+                    )
+                    summary['indexed'] += int(index_result.changed)
+                except (IngestionError, IndexingError, ValueError) as exc:
+                    summary['errors'].append({
+                        'source_id': source.pk,
+                        'error': type(exc).__name__,
+                    })
+                    self.stderr.write(self.style.ERROR(
+                        f'Fuente {source.pk} ({source.nombre}): {exc}'
+                    ))
+        except Exception as exc:
+            summary['errors'].append({'error': type(exc).__name__})
+            self._finish_run(run, summary)
+            raise
+
+        self._finish_run(run, summary)
 
         self.stdout.write(json.dumps(summary, ensure_ascii=False, indent=2))
         if summary['errors']:
             raise CommandError(
                 f'Fallaron {len(summary["errors"])} fuente(s); revise stderr.'
             )
+
+    def _finish_run(self, run, summary):
+        run.estado = (
+            KnowledgeUpdateRun.Estado.ERROR
+            if summary['errors']
+            else KnowledgeUpdateRun.Estado.EXITOSA
+        )
+        run.documentos_actualizados = summary['ingested']
+        run.documentos_sin_cambios = summary['unchanged']
+        run.documentos_indexados = summary['indexed']
+        run.errores = len(summary['errors'])
+        run.detalle_errores = summary['errors']
+        run.fecha_fin = timezone.now()
+        run.save(update_fields=(
+            'estado',
+            'documentos_actualizados',
+            'documentos_sin_cambios',
+            'documentos_indexados',
+            'errores',
+            'detalle_errores',
+            'fecha_fin',
+        ))
 
     def _release_lock(self, lock_token):
         try:

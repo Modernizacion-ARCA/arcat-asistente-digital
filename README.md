@@ -228,6 +228,12 @@ compartido impide que dos réplicas actualicen la base de conocimiento simultán
 si Redis no está disponible, la ejecución falla de forma segura. El bloqueo vence en
 una hora para permitir la recuperación ante una terminación abrupta.
 
+Cada ejecución iniciada queda registrada como una `KnowledgeUpdateRun`, con estado,
+horarios, cantidades de fuentes, documentos actualizados, documentos sin cambios,
+índices regenerados y tipos de error. El detalle se puede consultar en Django Admin y
+no persiste mensajes de excepción que puedan contener datos sensibles. El `run_id` del
+registro también se incluye en el resumen JSON para correlacionarlo con los logs.
+
 Debe programarse desde el orquestador de despliegue (cron, systemd timer o tarea de la
 plataforma) y configurarse con alertas sobre fallos. No requiere un servicio de
 embeddings separado.
@@ -408,8 +414,9 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
    umbral mínimo de evidencia.
 3. **Validación de experiencia:** pruebas con personas usuarias, revisión de lenguaje
    claro, accesibilidad automatizada y ajustes responsive sobre dispositivos reales.
-4. **Operación:** conectar `actualizar_conocimiento` al scheduler del entorno, sumar
-   alertas, métricas, retención de registros, backups y endurecimiento de producción.
+4. **Operación:** conectar `actualizar_conocimiento` al scheduler del entorno, definir
+   alertas y métricas a partir de `KnowledgeUpdateRun`, una política de retención para
+   esos registros, backups y endurecimiento de producción.
 5. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
    revisión, no corresponde presentar respuestas como información institucional real.
 

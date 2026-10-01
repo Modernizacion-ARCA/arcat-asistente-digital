@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import DocumentChunk, Documento, Fuente
+from .models import DocumentChunk, Documento, Fuente, KnowledgeUpdateRun
 
 
 @admin.register(Fuente)
@@ -88,3 +88,35 @@ class DocumentChunkAdmin(admin.ModelAdmin):
     list_select_related = ('documento', 'documento__fuente')
     readonly_fields = ('fecha_creacion', 'fecha_actualizacion')
     ordering = ('documento_id', 'indice')
+
+
+@admin.register(KnowledgeUpdateRun)
+class KnowledgeUpdateRunAdmin(admin.ModelAdmin):
+    list_display = (
+        'fecha_inicio',
+        'fecha_fin',
+        'estado',
+        'fuentes_total',
+        'documentos_actualizados',
+        'documentos_indexados',
+        'errores',
+    )
+    list_filter = ('estado', 'fecha_inicio')
+    readonly_fields = (
+        'estado',
+        'fuentes_total',
+        'documentos_actualizados',
+        'documentos_sin_cambios',
+        'documentos_indexados',
+        'errores',
+        'detalle_errores',
+        'fecha_inicio',
+        'fecha_fin',
+    )
+    ordering = ('-fecha_inicio',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
