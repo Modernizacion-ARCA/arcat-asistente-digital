@@ -7,7 +7,7 @@
       "id": "demo-tramite-001",
       "question": "¿Qué necesito para completar el trámite DEMO?",
       "expected_document_urls": [
-        "https://demo.invalid/documento/"
+        "https://demo.invalid/catalog/tad-arcat-001/"
       ],
       "expected_terms": [
         "trámite DEMO"

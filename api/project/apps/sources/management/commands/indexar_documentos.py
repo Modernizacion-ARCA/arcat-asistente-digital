@@ -15,6 +15,11 @@ class Command(BaseCommand):
             dest='documentos',
             help='ID de un documento a indexar; se puede repetir.',
         )
+        parser.add_argument(
+            '--origen',
+            choices=Fuente.OrigenInformacion.values,
+            help='Limita por procedencia de la fuente (OFICIAL o DEMO).',
+        )
 
     def handle(self, *args, **options):
         documents = Documento.objects.filter(
@@ -24,6 +29,10 @@ class Command(BaseCommand):
         ).select_related('fuente').order_by('pk')
         if options['documentos']:
             documents = documents.filter(pk__in=options['documentos'])
+        if options['origen']:
+            documents = documents.filter(
+                fuente__origen_informacion=options['origen']
+            )
         if not documents.exists():
             raise CommandError('No hay documentos activos y verificados para indexar.')
 

@@ -229,6 +229,29 @@ la versión usada como evidencia histórica. El acceso de red de este entorno fu
 por el proxy, por lo que en esta entrega se preservó el contenido como borrador y no se
 afirma que haya sido verificado online.
 
+Para probar el pipeline sin confundir el borrador con información institucional, puede
+cargarse en un espacio aislado `DEMO`. El flag explícito es obligatorio:
+
+```bash
+python manage.py cargar_catalogo_demo \
+  --archivo data/catalogs/arcat-tramites-candidatos-v1.json \
+  --confirm-demo
+```
+
+La carga es idempotente y crea un organismo `ARCAT DEMO`, trámites inactivos, una fuente
+de origen `DEMO` y documentos bajo `demo.invalid`. Conserva las URLs candidatas sólo en
+metadata y nunca convierte el catálogo en oficial. Luego se pueden generar embeddings y
+ejecutar el benchmark ficticio de punta a punta:
+
+```bash
+python manage.py indexar_documentos --origen DEMO
+python manage.py evaluar_rag --dataset evaluation/datasets/demo-v1.json
+```
+
+Este circuito sirve para desarrollo técnico. La promoción oficial será un proceso
+separado y sólo se implementará cuando exista una versión verificada con URLs específicas
+y aprobación humana.
+
 ## API pública de consulta
 
 El endpoint público acepta únicamente JSON y no requiere autenticación:
@@ -334,7 +357,7 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 ### Cómo seguimos
 
-La próxima entrega debería cargar fuentes oficiales revisadas y construir con referentes
+La próxima entrega debería verificar fuentes oficiales y construir con referentes
 el **dataset institucional de evaluación**, sin inventar respuestas desde desarrollo.
 Con ese baseline se podrán fijar umbrales de evidencia antes de crear el chat. En
 paralelo se puede preparar Redis para que el throttle sea consistente entre réplicas.

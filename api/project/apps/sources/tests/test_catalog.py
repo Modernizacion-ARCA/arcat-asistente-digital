@@ -8,6 +8,8 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from sources.catalog import CatalogValidationError, load_catalog
+from sources.models import Documento, Fuente
+from procedures.models import Tramite
 
 
 CATALOG_PATH = Path(str(settings.ROOT_DIR)) / 'data/catalogs/arcat-tramites-candidatos-v1.json'
@@ -54,3 +56,40 @@ def test_comando_impide_tratar_borrador_como_verificado():
             archivo=CATALOG_PATH,
             require_verified=True,
         )
+
+
+def test_carga_demo_exige_confirmacion():
+    with pytest.raises(CommandError, match='--confirm-demo'):
+        call_command('cargar_catalogo_demo', archivo=CATALOG_PATH)
+
+
+@pytest.mark.django_db
+def test_carga_demo_es_aislada_e_idempotente():
+    first_output = StringIO()
+    second_output = StringIO()
+
+    call_command(
+        'cargar_catalogo_demo',
+        archivo=CATALOG_PATH,
+        confirm_demo=True,
+        stdout=first_output,
+    )
+    call_command(
+        'cargar_catalogo_demo',
+        archivo=CATALOG_PATH,
+        confirm_demo=True,
+        stdout=second_output,
+    )
+
+    assert json.loads(first_output.getvalue())['created_procedures'] == 10
+    assert json.loads(second_output.getvalue())['updated_procedures'] == 10
+    assert Tramite.objects.filter(slug__startswith='demo-tad-arcat-').count() == 10
+    assert not Tramite.objects.filter(
+        slug__startswith='demo-tad-arcat-', activo=True
+    ).exists()
+    assert Documento.objects.filter(fuente__origen_informacion='DEMO').count() == 10
+    source = Fuente.objects.get(url__startswith='https://demo.invalid/catalog/')
+    assert source.origen_informacion == Fuente.OrigenInformacion.DEMO
+    assert source.metadata['source_verification_status'] == (
+        'PENDING_SOURCE_VERIFICATION'
+    )
