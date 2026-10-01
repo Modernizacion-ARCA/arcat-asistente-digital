@@ -238,6 +238,20 @@ Debe programarse desde el orquestador de despliegue (cron, systemd timer o tarea
 plataforma) y configurarse con alertas sobre fallos. No requiere un servicio de
 embeddings separado.
 
+Para monitoreo, el siguiente comando comprueba que exista una ejecución exitosa
+reciente y que la última ejecución no haya fallado:
+
+```bash
+python manage.py verificar_conocimiento --max-hours 24
+```
+
+La salida JSON incluye el último `run_id`, fechas, contadores de la ejecución, cantidad
+de fuentes oficiales verificadas, documentos indexados y chunks. El proceso termina
+con código distinto de cero cuando nunca hubo una actualización exitosa, cuando la
+última quedó fuera del umbral, cuando la ejecución más reciente falló o cuando una
+ejecución permanece en curso más allá del umbral. Esto permite conectarlo a una alerta
+del scheduler sin publicar un endpoint operativo en la API pública.
+
 ## Catálogo candidato de trámites ARCAT
 
 Se incorporó `data/catalogs/arcat-tramites-candidatos-v1.json` con los diez registros
@@ -414,9 +428,10 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
    umbral mínimo de evidencia.
 3. **Validación de experiencia:** pruebas con personas usuarias, revisión de lenguaje
    claro, accesibilidad automatizada y ajustes responsive sobre dispositivos reales.
-4. **Operación:** conectar `actualizar_conocimiento` al scheduler del entorno, definir
-   alertas y métricas a partir de `KnowledgeUpdateRun`, una política de retención para
-   esos registros, backups y endurecimiento de producción.
+4. **Operación:** conectar `actualizar_conocimiento` y `verificar_conocimiento` al
+   scheduler/monitor del entorno, definir los umbrales y destinos reales de alerta, una
+   política de retención para `KnowledgeUpdateRun`, backups y endurecimiento de
+   producción.
 5. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
    revisión, no corresponde presentar respuestas como información institucional real.
 
