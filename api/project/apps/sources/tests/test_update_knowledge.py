@@ -1,0 +1,91 @@
+import json
+from io import StringIO
+from types import SimpleNamespace
+
+import pytest
+from django.core.management import call_command
+
+from organizations.models import Organismo
+from sources.models import Fuente
+
+
+@pytest.fixture
+def official_source(db):
+    organismo = Organismo.objects.create(nombre='ARCAT actualización')
+    source = Fuente.objects.create(
+        nombre='Fuente oficial verificada',
+        url='https://example.gob.ar/fuente/',
+        organismo=organismo,
+        tipo=Fuente.Tipo.SITIO_WEB,
+        origen_informacion=Fuente.OrigenInformacion.OFICIAL,
+        estado_verificacion=Fuente.EstadoVerificacion.VERIFICADA,
+    )
+    Fuente.objects.create(
+        nombre='Fuente DEMO excluida',
+        url='https://demo.invalid/fuente/',
+        organismo=organismo,
+        tipo=Fuente.Tipo.SITIO_WEB,
+        origen_informacion=Fuente.OrigenInformacion.DEMO,
+        estado_verificacion=Fuente.EstadoVerificacion.VERIFICADA,
+    )
+    Fuente.objects.create(
+        nombre='Fuente oficial pendiente excluida',
+        url='https://example.gob.ar/pendiente/',
+        organismo=organismo,
+        tipo=Fuente.Tipo.SITIO_WEB,
+        origen_informacion=Fuente.OrigenInformacion.OFICIAL,
+    )
+    return source
+
+
+@pytest.mark.django_db
+def test_actualizacion_procesa_solo_fuentes_oficiales_verificadas(
+    official_source,
+    mocker,
+):
+    document = object()
+    ingestion = mocker.patch(
+        'sources.management.commands.actualizar_conocimiento.IngestionService'
+    ).return_value
+    ingestion.ingest.return_value = SimpleNamespace(
+        changed=False,
+        documento=document,
+    )
+    indexer = mocker.patch(
+        'sources.management.commands.actualizar_conocimiento.DocumentIndexer'
+    ).return_value
+    indexer.index.return_value = SimpleNamespace(changed=False)
+    stdout = StringIO()
+
+    call_command('actualizar_conocimiento', stdout=stdout)
+
+    ingestion.ingest.assert_called_once_with(official_source)
+    indexer.index.assert_called_once_with(document, force=False)
+    summary = json.loads(stdout.getvalue())
+    assert summary == {
+        'sources': 1,
+        'ingested': 0,
+        'unchanged': 1,
+        'indexed': 0,
+        'errors': [],
+    }
+
+
+@pytest.mark.django_db
+def test_actualizacion_forzada_reindexa_documento(official_source, mocker):
+    document = object()
+    ingestion = mocker.patch(
+        'sources.management.commands.actualizar_conocimiento.IngestionService'
+    ).return_value
+    ingestion.ingest.return_value = SimpleNamespace(
+        changed=False,
+        documento=document,
+    )
+    indexer = mocker.patch(
+        'sources.management.commands.actualizar_conocimiento.DocumentIndexer'
+    ).return_value
+    indexer.index.return_value = SimpleNamespace(changed=True)
+
+    call_command('actualizar_conocimiento', '--force-index')
+
+    indexer.index.assert_called_once_with(document, force=True)

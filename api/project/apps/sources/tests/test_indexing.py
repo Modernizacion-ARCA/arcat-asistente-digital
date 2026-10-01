@@ -83,6 +83,21 @@ def test_indexador_no_regenera_si_configuracion_y_texto_no_cambian(documento):
 
 
 @pytest.mark.django_db
+def test_indexador_forzado_regenera_aunque_el_documento_no_cambie(documento):
+    provider = FakeEmbeddingProvider()
+    indexer = DocumentIndexer(
+        embedding_provider=provider,
+        chunker=TextChunker(chunk_size=5, overlap=1),
+    )
+    indexer.index(documento)
+
+    result = indexer.index(documento, force=True)
+
+    assert result.changed is True
+    assert len(provider.calls) == 2
+
+
+@pytest.mark.django_db
 def test_error_de_embeddings_no_elimina_indice_anterior(documento):
     valid_provider = FakeEmbeddingProvider()
     DocumentIndexer(

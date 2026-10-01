@@ -36,7 +36,7 @@ class DocumentIndexer:
         )
         return hashlib.sha256(payload.encode('utf-8')).hexdigest()
 
-    def index(self, document):
+    def index(self, document, *, force=False):
         text = (document.texto_extraido or document.contenido).strip()
         if not text:
             raise IndexingError('El documento no contiene texto para indexar.')
@@ -44,7 +44,7 @@ class DocumentIndexer:
         signature = self._signature(document, text)
         chunks = self.chunker.split(text)
         existing = list(document.fragmentos.order_by('indice'))
-        if existing and len(existing) == len(chunks) and all(
+        if not force and existing and len(existing) == len(chunks) and all(
             chunk.metadata.get('index_signature') == signature
             for chunk in existing
         ):

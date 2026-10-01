@@ -199,6 +199,35 @@ python manage.py indexar_documentos --documento 1 --documento 3
 Si falla la generación de embeddings, el índice anterior se conserva. La sustitución
 de fragmentos sólo comienza después de recibir y validar un vector para cada chunk.
 
+### Actualización operativa del conocimiento
+
+Para una ejecución programada se dispone de un único comando que encadena ingesta e
+indexación:
+
+```bash
+python manage.py actualizar_conocimiento
+```
+
+Por seguridad, esta operación considera exclusivamente fuentes con procedencia
+`OFICIAL` que estén activas y verificadas. Los datos `DEMO` y las fuentes pendientes
+quedan excluidos aun cuando existan en la base. El checksum evita persistir nuevamente
+un documento idéntico y la firma del índice evita recalcular embeddings cuando no
+cambiaron el texto, la metadata, el modelo ni la configuración de chunking.
+
+La ejecución puede limitarse a una o más fuentes y también permite reconstruir el
+índice de forma explícita:
+
+```bash
+python manage.py actualizar_conocimiento --fuente 1 --fuente 3
+python manage.py actualizar_conocimiento --force-index
+```
+
+El comando intenta todas las fuentes seleccionadas, imprime un resumen JSON apto para
+logs y finaliza con código distinto de cero si alguna falla. Debe programarse desde el
+orquestador de despliegue (cron, systemd timer o tarea de la plataforma), con una única
+ejecución concurrente y alertas sobre fallos; no requiere un servicio de embeddings
+separado.
+
 ## Catálogo candidato de trámites ARCAT
 
 Se incorporó `data/catalogs/arcat-tramites-candidatos-v1.json` con los diez registros
@@ -375,8 +404,9 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
    umbral mínimo de evidencia.
 3. **Validación de experiencia:** pruebas con personas usuarias, revisión de lenguaje
    claro, accesibilidad automatizada y ajustes responsive sobre dispositivos reales.
-4. **Operación:** tareas programadas de ingesta/indexación, observabilidad, retención de
-   registros, backups y endurecimiento de producción.
+4. **Operación:** conectar `actualizar_conocimiento` al scheduler del entorno, sumar
+   exclusión distribuida entre réplicas, alertas, métricas, retención de registros,
+   backups y endurecimiento de producción.
 5. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
    revisión, no corresponde presentar respuestas como información institucional real.
 
