@@ -2,7 +2,7 @@
 
 MVP en evolución para consultar, en lenguaje natural, información institucional de la Agencia de Recaudación Catamarca (ARCAT). El repositorio parte de un backend Django existente y se desarrolla por fases para preservar la trazabilidad, evitar datos inventados y mantener una arquitectura simple.
 
-> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración, ingesta, indexación con embeddings locales, retrieval híbrido, orquestación RAG, API pública y evaluación reproducible de recuperación están implementados. OpenRouter dispone de fallback gratuito y controles persistentes de consumo. Todavía no hay información oficial precargada, dataset oficial validado ni frontend ejecutable.
+> **Estado actual:** Django, PostgreSQL + pgvector, dominio, administración, ingesta, indexación con embeddings locales, retrieval híbrido, orquestación RAG, API pública, evaluación reproducible y frontend Next.js están implementados. OpenRouter dispone de fallback gratuito y controles persistentes de consumo. Todavía no hay información oficial precargada ni dataset oficial validado.
 
 ## Arquitectura objetivo
 
@@ -10,7 +10,7 @@ MVP en evolución para consultar, en lenguaje natural, información instituciona
 Usuario
   │
   ▼
-Next.js (interfaz pública; fase posterior)
+Next.js (interfaz pública)
   │ REST
   ▼
 Django + Django REST Framework
@@ -121,6 +121,7 @@ Las variables actuales son:
 | `RAG_TOP_K` | Máximo inicial de evidencias devueltas por retrieval. |
 | `RAG_MAX_QUESTION_LENGTH` | Longitud máxima aceptada por la API pública. |
 | `RAG_API_RATE_LIMIT` | Límite por identidad anónima; por defecto `10/hour`. |
+| `NEXT_PUBLIC_API_BASE_URL` | URL pública de Django utilizada por el navegador; nunca contiene secretos. |
 
 Todos los valores se leen y validan en Django Settings. Para cambiar modelos o parámetros RAG basta editar `.env` y reiniciar el backend. No se aceptan secretos en variables públicas de Next.js.
 
@@ -130,9 +131,9 @@ Todos los valores se leen y validan en Django Settings. Para cambiar modelos o p
 docker compose up --build
 ```
 
-Compose inicia `postgres` con la imagen oficial de pgvector y, una vez saludable, inicia `backend`, ejecuta migraciones y sirve Django en <http://localhost:8000>. La migración inicial de `core` ejecuta `CREATE EXTENSION vector` de forma versionada. Los volúmenes `postgres_data` y `embedding_models` mantienen la base y la caché del modelo local entre reinicios.
-
-El servicio `frontend` se incorporará en su fase correspondiente; no se agrega un contenedor vacío antes de que exista una aplicación Next.js ejecutable.
+Compose inicia PostgreSQL/pgvector, Redis, Django en <http://localhost:8000> y Next.js en
+<http://localhost:3000>. Django ejecuta las migraciones al iniciar. Los volúmenes
+`postgres_data` y `embedding_models` mantienen la base y la caché del modelo local.
 
 ## Ejecución local del backend
 
@@ -300,6 +301,24 @@ pueden dejar la variable vacía para usar memoria local, pero settings de produc
 rechaza explícitamente arrancar sin un Redis configurado. Los datos del throttle son
 efímeros y no requieren persistencia en disco.
 
+## Frontend Next.js
+
+La interfaz pública ofrece un formulario accesible, sugerencias de consulta, estados de
+carga/error y una lista de evidencias con enlaces. También advierte que no deben enviarse
+CUIT, claves ni datos personales y que la respuesta no reemplaza una resolución
+administrativa.
+
+El navegador llama únicamente a `NEXT_PUBLIC_API_BASE_URL`; esa variable contiene una
+URL pública, no una credencial. OpenRouter, modelos, fallbacks, límites y embeddings
+siguen siendo responsabilidad exclusiva de Django. Para desarrollo sin Compose:
+
+```bash
+cd front
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
 ## Evaluación de recuperación
 
 La evaluación es offline y **no invoca al LLM ni consume OpenRouter**. Cada dataset JSON
@@ -354,8 +373,8 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 2. **Dataset oficial y criterios de aceptación:** redactar con referentes de ARCAT casos
    reales revisados, fijar baselines y recién entonces ajustar `top-k`, chunking y el
    umbral mínimo de evidencia.
-3. **Frontend:** aplicación Next.js accesible que consuma exclusivamente la API Django;
-   nunca OpenRouter ni los modelos de embeddings de forma directa.
+3. **Validación de experiencia:** pruebas con personas usuarias, revisión de lenguaje
+   claro, accesibilidad automatizada y ajustes responsive sobre dispositivos reales.
 4. **Operación:** tareas programadas de ingesta/indexación, observabilidad, retención de
    registros, backups y endurecimiento de producción.
 5. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
@@ -365,8 +384,8 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
 
 La próxima entrega debería verificar fuentes oficiales y construir con referentes
 el **dataset institucional de evaluación**, sin inventar respuestas desde desarrollo.
-Con ese baseline se podrán fijar umbrales de evidencia antes de crear el chat. En
-paralelo se puede diseñar el frontend contra el contrato público ya disponible. Después
-se incorpora Next.js y, finalmente, automatización operativa y métricas.
+Con ese baseline se podrán fijar umbrales de evidencia y validar el chat ya disponible
+sin presentarlo todavía como una fuente institucional completa. Después corresponde
+probar accesibilidad/usabilidad y, finalmente, automatización operativa y métricas.
 
 Las inconsistencias heredadas en endpoints de persona/usuario se consideran deuda preexistente y se corregirán sólo cuando interfieran con una fase, para evitar un refactor general fuera de alcance.
