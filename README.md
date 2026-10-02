@@ -252,6 +252,19 @@ con código distinto de cero cuando nunca hubo una actualización exitosa, cuand
 ejecución permanece en curso más allá del umbral. Esto permite conectarlo a una alerta
 del scheduler sin publicar un endpoint operativo en la API pública.
 
+El historial operativo puede depurarse con una política explícita. Por defecto el
+comando sólo simula y muestra cuántos registros serían eliminados:
+
+```bash
+python manage.py depurar_actualizaciones_conocimiento --days 90
+python manage.py depurar_actualizaciones_conocimiento --days 90 --execute
+```
+
+La depuración nunca elimina ejecuciones `EN_CURSO` y conserva siempre la ejecución
+finalizada más reciente y la última ejecución exitosa, incluso cuando sean anteriores
+al umbral. Debe revisarse primero la salida de simulación y programar `--execute` sólo
+después de acordar el período de retención institucional.
+
 ## Catálogo candidato de trámites ARCAT
 
 Se incorporó `data/catalogs/arcat-tramites-candidatos-v1.json` con los diez registros
@@ -430,8 +443,8 @@ Para validar la infraestructura completa, ejecutar además `docker compose confi
    claro, accesibilidad automatizada y ajustes responsive sobre dispositivos reales.
 4. **Operación:** conectar `actualizar_conocimiento` y `verificar_conocimiento` al
    scheduler/monitor del entorno, definir los umbrales y destinos reales de alerta, una
-   política de retención para `KnowledgeUpdateRun`, backups y endurecimiento de
-   producción.
+   política institucional para ejecutar la depuración ya disponible, backups y
+   endurecimiento de producción.
 5. **Datos:** alta y revisión humana de fuentes oficiales de ARCAT. Hasta completar esa
    revisión, no corresponde presentar respuestas como información institucional real.
 
