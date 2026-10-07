@@ -13,8 +13,8 @@ def test_creacion_usuario_satisfactoria():
             "attributes": {
                 "first_name": "David",
                 "last_name": "Sanchez Motran",
-                "password": "contraseña",
-                "password_2": "contraseña",
+                "password": "Clave-Demo-ARCAT-2026!",
+                "password_2": "Clave-Demo-ARCAT-2026!",
                 "email": "debianitram@gmail.com",
                 "username": "debianitram"
             },
@@ -38,13 +38,14 @@ def test_creacion_usuario_satisfactoria():
     assert response.status_code == 201
     data = response.json()['data']
     assert data['type'] == 'Usuario'
-    assert data['id'] == '1'
+    assert data['id'].isdigit()
     assert data['attributes']['username'] == 'debianitram'
     assert data['attributes']['email'] == 'debianitram@gmail.com'
     assert data['attributes']['first_name'] == 'David'
     assert data['attributes']['last_name'] == 'Sanchez Motran'
 
-    usuario = get_user_model().objects.get(id=data['id'])
+    usuario = get_user_model().objects.get(username='debianitram')
+    assert data['id'] == str(usuario.pk)
     assert usuario.is_active is False
 '''
 
