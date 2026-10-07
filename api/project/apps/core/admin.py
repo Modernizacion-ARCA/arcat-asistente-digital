@@ -3,6 +3,53 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from . import filters
+from .models import LLMDailyQuota, LLMRequestLog
+
+
+@admin.register(LLMDailyQuota)
+class LLMDailyQuotaAdmin(admin.ModelAdmin):
+    list_display = ('fecha', 'solicitudes', 'fecha_actualizacion')
+    readonly_fields = ('fecha', 'solicitudes', 'fecha_actualizacion')
+    ordering = ('-fecha',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(LLMRequestLog)
+class LLMRequestLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'fecha_creacion',
+        'modelo',
+        'estado',
+        'posicion_fallback',
+        'tokens_entrada',
+        'tokens_salida',
+        'duracion_ms',
+    )
+    list_filter = ('estado', 'modelo', 'fecha_creacion')
+    search_fields = ('modelo', 'codigo_error')
+    readonly_fields = (
+        'proveedor',
+        'modelo',
+        'estado',
+        'posicion_fallback',
+        'tokens_entrada',
+        'tokens_salida',
+        'duracion_ms',
+        'codigo_error',
+        'fecha_creacion',
+    )
+    ordering = ('-fecha_creacion',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class PublicadoMixinAdmin(admin.ModelAdmin):
