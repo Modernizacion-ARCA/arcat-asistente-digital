@@ -265,19 +265,25 @@ finalizada más reciente y la última ejecución exitosa, incluso cuando sean an
 al umbral. Debe revisarse primero la salida de simulación y programar `--execute` sólo
 después de acordar el período de retención institucional.
 
-## Catálogo candidato de trámites ARCAT
+## Catálogo de trámites ARCAT en revisión
 
-Se incorporó `data/catalogs/arcat-tramites-candidatos-v1.json` con los diez registros
-aportados para iniciar el relevamiento de ARCAT, Rentas y TAD. El archivo está marcado
-deliberadamente como `PENDING_SOURCE_VERIFICATION`: **no se carga en los modelos, no se
-indexa y no puede aparecer en la API pública**. Tener dominios oficiales como referencia
-no sustituye la comprobación de cada nombre, descripción, requisito, vigencia y URL.
+El borrador original se conserva en
+`data/catalogs/arcat-tramites-candidatos-v1.json`. La revisión técnica del 7 de octubre
+de 2026 se guarda separadamente en
+`data/catalogs/arcat-tramites-revisados-v2.json`: los nombres y descripciones generales
+de sus diez registros se contrastaron con páginas públicas de ARCAT, Catastro y Rentas,
+y cada registro conserva fecha, alcance y URLs de evidencia.
+
+La versión revisada permanece marcada como `PENDING_INSTITUTIONAL_APPROVAL`: **no se
+carga como información oficial, no se indexa como oficial y no puede aparecer en la API
+pública**. La coincidencia con una página pública no sustituye la aprobación de ARCAT ni
+permite completar requisitos, costos, plazos o vigencia que la fuente no publique.
 
 La estructura y la allowlist de hosts se validan con:
 
 ```bash
 python manage.py validar_catalogo_arcat \
-  --archivo data/catalogs/arcat-tramites-candidatos-v1.json
+  --archivo data/catalogs/arcat-tramites-revisados-v2.json
 ```
 
 El siguiente comando falla mientras el borrador no esté aprobado, por lo que puede
@@ -285,24 +291,25 @@ usarse como barrera antes de cualquier futura importación:
 
 ```bash
 python manage.py validar_catalogo_arcat \
-  --archivo data/catalogs/arcat-tramites-candidatos-v1.json \
+  --archivo data/catalogs/arcat-tramites-revisados-v2.json \
   --require-verified
 ```
 
-Para promover una versión se debe contrastar registro por registro contra
-`arcat.gob.ar`, `dgrentas.arcat.gob.ar` y `tad.catamarca.gob.ar`, completar los campos
-vacíos sólo cuando la fuente los publique, guardar la URL específica y fecha de consulta,
-y realizar revisión humana. Luego se crea una nueva versión del archivo; no se reescribe
-la versión usada como evidencia histórica. El acceso de red de este entorno fue rechazado
-por el proxy, por lo que en esta entrega se preservó el contenido como borrador y no se
-afirma que haya sido verificado online.
+Para promover esta versión todavía se deben revisar con referentes institucionales el
+alcance, vigencia y campos faltantes, registrar la aprobación y generar una versión
+inmutable con estado `VERIFIED`. El validador exige evidencia oficial por registro para
+los estados posteriores a la revisión de fuente y acepta los hosts oficiales
+`arcat.gob.ar`, `dgcatastro.arcat.gob.ar`, `dgrentas.arcat.gob.ar` y
+`tad.catamarca.gob.ar`. Cambiar solamente el estado no alcanza: una versión `VERIFIED`
+también debe declarar `institutional_approval` con responsable, fecha y referencia
+documental de la aprobación.
 
 Para probar el pipeline sin confundir el borrador con información institucional, puede
 cargarse en un espacio aislado `DEMO`. El flag explícito es obligatorio:
 
 ```bash
 python manage.py cargar_catalogo_demo \
-  --archivo data/catalogs/arcat-tramites-candidatos-v1.json \
+  --archivo data/catalogs/arcat-tramites-revisados-v2.json \
   --confirm-demo
 ```
 
@@ -597,9 +604,9 @@ GitHub y exigir ambos jobs como checks obligatorios.
 
 ### Qué falta
 
-1. **Verificación del catálogo candidato:** contrastar los diez trámites con las páginas
-   oficiales, capturar URLs específicas, vigencia y campos faltantes, y aprobar una nueva
-   versión antes de importarla o indexarla.
+1. **Aprobación del catálogo revisado:** validar con referentes de ARCAT las coincidencias
+   documentadas, completar únicamente campos respaldados, confirmar vigencia y aprobar
+   una nueva versión antes de importarla o indexarla como oficial.
 2. **Dataset oficial y criterios de aceptación:** redactar con referentes de ARCAT casos
    reales revisados, fijar baselines y recién entonces ajustar `top-k`, chunking y el
    umbral mínimo de evidencia.
@@ -614,8 +621,9 @@ GitHub y exigir ambos jobs como checks obligatorios.
 
 ### Cómo seguimos
 
-La próxima entrega debería verificar fuentes oficiales y construir con referentes
-el **dataset institucional de evaluación**, sin inventar respuestas desde desarrollo.
+La próxima entrega debería obtener la aprobación institucional del catálogo revisado y
+construir con referentes el **dataset institucional de evaluación**, sin inventar
+respuestas desde desarrollo.
 Con ese baseline se podrán fijar umbrales de evidencia y validar el chat ya disponible
 sin presentarlo todavía como una fuente institucional completa. Después corresponde
 probar accesibilidad/usabilidad y, finalmente, automatización operativa y métricas.

@@ -44,7 +44,7 @@ def _render_record(record):
 class DemoCatalogLoader:
     """Load candidate records into an isolated DEMO namespace, never as official data."""
 
-    source_url = 'https://demo.invalid/catalog/arcat-tramites-candidatos-v1/'
+    source_url = 'https://demo.invalid/catalog/arcat-tramites-revisados-v2/'
 
     @transaction.atomic
     def load(self, catalog):
@@ -112,7 +112,7 @@ class DemoCatalogLoader:
                     'modalidad': Tramite.Modalidad.ONLINE,
                     'url_inicio': record['url_tad'],
                     'observaciones': (
-                        'Registro DEMO pendiente de verificación contra la fuente.'
+                        'Registro DEMO pendiente de aprobación institucional.'
                     ),
                     'activo': False,
                 },

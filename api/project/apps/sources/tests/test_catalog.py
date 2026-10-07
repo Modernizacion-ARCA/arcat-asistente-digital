@@ -12,17 +12,29 @@ from sources.models import Documento, Fuente
 from procedures.models import Tramite
 
 
-CATALOG_PATH = Path(str(settings.ROOT_DIR)) / 'data/catalogs/arcat-tramites-candidatos-v1.json'
+CATALOG_DIR = Path(str(settings.ROOT_DIR)) / 'data/catalogs'
+CANDIDATE_PATH = CATALOG_DIR / 'arcat-tramites-candidatos-v1.json'
+CATALOG_PATH = CATALOG_DIR / 'arcat-tramites-revisados-v2.json'
 
 
-def test_catalogo_candidato_es_valido_y_permanece_pendiente():
+def test_catalogo_candidato_original_se_conserva_pendiente():
+    catalog = load_catalog(CANDIDATE_PATH)
+
+    assert catalog.verification_status == 'PENDING_SOURCE_VERIFICATION'
+    assert catalog.reviewed_at is None
+    assert len(catalog.records) == 10
+
+
+def test_catalogo_revisado_es_valido_y_espera_aprobacion_institucional():
     catalog = load_catalog(CATALOG_PATH)
 
-    assert catalog.name == 'Catálogo candidato de trámites ARCAT'
-    assert catalog.verification_status == 'PENDING_SOURCE_VERIFICATION'
+    assert catalog.name == 'Catálogo revisado de trámites ARCAT'
+    assert catalog.verification_status == 'PENDING_INSTITUTIONAL_APPROVAL'
+    assert catalog.reviewed_at == '2026-10-07'
     assert len(catalog.records) == 10
     assert len({record['id'] for record in catalog.records}) == 10
     assert all(record['organismo'] == 'ARCAT' for record in catalog.records)
+    assert all(record['source_review']['evidence_urls'] for record in catalog.records)
 
 
 def test_catalogo_rechaza_fuente_fuera_de_allowlist(tmp_path):
@@ -46,7 +58,8 @@ def test_comando_informa_estado_y_cantidad():
 
     summary = json.loads(output.getvalue())
     assert summary['records'] == 10
-    assert summary['verification_status'] == 'PENDING_SOURCE_VERIFICATION'
+    assert summary['verification_status'] == 'PENDING_INSTITUTIONAL_APPROVAL'
+    assert summary['reviewed_at'] == '2026-10-07'
 
 
 def test_comando_impide_tratar_borrador_como_verificado():
@@ -91,5 +104,25 @@ def test_carga_demo_es_aislada_e_idempotente():
     source = Fuente.objects.get(url__startswith='https://demo.invalid/catalog/')
     assert source.origen_informacion == Fuente.OrigenInformacion.DEMO
     assert source.metadata['source_verification_status'] == (
-        'PENDING_SOURCE_VERIFICATION'
+        'PENDING_INSTITUTIONAL_APPROVAL'
     )
+
+
+def test_catalogo_revisado_exige_evidencia_por_registro(tmp_path):
+    payload = json.loads(CATALOG_PATH.read_text(encoding='utf-8'))
+    del payload['records'][0]['source_review']['evidence_urls']
+    path = tmp_path / 'sin-evidencia.json'
+    path.write_text(json.dumps(payload), encoding='utf-8')
+
+    with pytest.raises(CatalogValidationError, match='evidence_urls'):
+        load_catalog(path)
+
+
+def test_catalogo_no_se_promueve_solo_cambiando_el_estado(tmp_path):
+    payload = json.loads(CATALOG_PATH.read_text(encoding='utf-8'))
+    payload['verification_status'] = 'VERIFIED'
+    path = tmp_path / 'sin-aprobacion.json'
+    path.write_text(json.dumps(payload), encoding='utf-8')
+
+    with pytest.raises(CatalogValidationError, match='institutional_approval'):
+        load_catalog(path)

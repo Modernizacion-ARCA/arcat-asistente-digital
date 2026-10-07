@@ -25,6 +25,8 @@ class Command(BaseCommand):
             'name': catalog.name,
             'schema_version': catalog.version,
             'verification_status': catalog.verification_status,
+            'reviewed_at': catalog.reviewed_at,
+            'institutionally_approved': bool(catalog.institutional_approval),
             'source_urls': catalog.source_urls,
             'records': len(catalog.records),
         }
