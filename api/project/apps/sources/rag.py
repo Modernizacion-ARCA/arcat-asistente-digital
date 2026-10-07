@@ -40,7 +40,7 @@ class RAGService:
     def _format_result(result, position):
         chunk = result.chunk
         return (
-            f'[{position}] Documento: {chunk.documento.titulo}\n'
+            f'[{position}] {chunk.documento.titulo}\n'
             f'Fuente: {chunk.documento.fuente.nombre}\n'
             f'URL: {chunk.documento.url}\n'
             f'Contenido:\n{chunk.contenido}'

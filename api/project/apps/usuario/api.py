@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from rest_framework import permissions, generics, viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.parsers import JSONParser
@@ -7,7 +8,6 @@ from rest_framework.response import Response
 from persona.models import Persona
 from persona.serializers import PersonaSerializer
 from usuario.serializers import RegistroUsuarioSerializer, UsuarioSerializer, CambiarClaveSecretaSerializer
-from util.serializers import TelefonoSerializer
 
 Usuario = get_user_model()
 
@@ -28,18 +28,12 @@ class RegistroUsuarioAPIView(generics.CreateAPIView):
         try:
             persona = Persona.objects.get(documento_identidad=datos_persona['documento_identidad'])
         except Persona.DoesNotExist:
-            telefono = datos_persona.pop('telefonos', None)
-            telefono_serializer = TelefonoSerializer(data=telefono)
-            telefono_serializer.is_valid(raise_exception=True)
             persona_serializer = PersonaSerializer(data=datos_persona)
             persona_serializer.is_valid(raise_exception=True)
-            persona_serializer.save()
-            persona = persona_serializer.instance
-            # Guardamos el teléfono en persona.
-            if not persona.telefonos.filter(**telefono_serializer.validated_data).exists():
-                telefono_serializer.save(persona=persona)
+            persona = persona_serializer.save()
         return persona
 
+    @transaction.atomic
     def perform_create(self, serializer):
         datos_persona = getattr(self, 'datos_persona')
         persona = self.crear_persona(datos_persona)

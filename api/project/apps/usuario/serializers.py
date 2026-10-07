@@ -73,7 +73,7 @@ class RegistroUsuarioSerializer(serializers.ModelSerializer):
             **{
                 'first_name': validated_data['first_name'],
                 'last_name': validated_data['last_name'],
-                'is_active': True
+                'is_active': False
             }
         )
 

@@ -18,6 +18,11 @@ class HashedRAGThrottle(SimpleRateThrottle):
 
     scope = 'rag_anon'
 
+    def get_rate(self):
+        # Read the current Django setting rather than DRF's import-time snapshot. This
+        # also makes override_settings effective in tests and runtime configuration.
+        return settings.REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'][self.scope]
+
     def allow_request(self, request, view):
         try:
             return super().allow_request(request, view)
