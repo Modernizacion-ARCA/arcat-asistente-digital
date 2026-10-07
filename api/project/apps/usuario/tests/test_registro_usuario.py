@@ -13,8 +13,8 @@ def test_creacion_usuario_satisfactoria():
             "attributes": {
                 "first_name": "David",
                 "last_name": "Sanchez Motran",
-                "password": "contraseña",
-                "password_2": "contraseña",
+                "password": "Clave-Demo-ARCAT-2026!",
+                "password_2": "Clave-Demo-ARCAT-2026!",
                 "email": "debianitram@gmail.com",
                 "username": "debianitram"
             },
