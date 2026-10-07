@@ -8,8 +8,6 @@ from rest_framework.parsers import MultiPartParser, JSONParser
 from rest_framework.response import Response
 from persona.models import Persona
 from persona.serializers import PersonaSerializer, DocumentoSerializer
-from util.models import Telefono
-from util.serializers import TelefonoSerializer
 
 
 class PersonaViewSet(ListModelMixin, CreateModelMixin, RetrieveModelMixin, viewsets.GenericViewSet):
@@ -17,21 +15,6 @@ class PersonaViewSet(ListModelMixin, CreateModelMixin, RetrieveModelMixin, views
     serializer_class = PersonaSerializer
     permission_classes = (IsAuthenticated,)
     filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
-
-    def get_serializer(self, *args, **kwargs):
-        serializer = super().get_serializer(*args, **kwargs)
-        if self.action in ('create',):
-            setattr(self, 'telefono_data', serializer.extraer_telefono())
-        return serializer
-
-    def perform_update(self, serializer):
-        telefono_data = getattr(self, 'telefono_data')
-        TelefonoSerializer(data={'numero': telefono_data}).is_valid(raise_exception=True)
-
-        persona = serializer.save()
-
-        if not persona.telefonos.filter(numero=telefono_data).exists():
-            persona.telefonos.add(Telefono(numero=telefono_data), bulk=False)
 
     @action(
         methods=('POST',),
@@ -54,4 +37,3 @@ class PersonaViewSet(ListModelMixin, CreateModelMixin, RetrieveModelMixin, views
             persona_id = None
 
         return Response({'persona_id': persona_id})
-
