@@ -33,6 +33,10 @@ env.read_env(env_file)
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('DJANGO_SECRET_KEY', default='unsafe-development-key-change-me')
 
+# Legacy third-party apps such as django-jet still use AutoField. Project apps that
+# use BigAutoField declare it in their AppConfig to keep migration state explicit.
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool('DJANGO_DEBUG', True)
 

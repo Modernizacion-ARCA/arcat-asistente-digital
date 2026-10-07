@@ -58,7 +58,7 @@ jobs:
       - name: Install backend dependencies
         run: pip install -r requirements/testing.txt
       - name: Validate Django configuration
-        run: python manage.py check
+        run: python manage.py check --fail-level WARNING
       - name: Validate migrations
         run: python manage.py makemigrations --check --dry-run
       - name: Apply migrations
