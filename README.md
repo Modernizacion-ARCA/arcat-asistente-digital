@@ -411,6 +411,158 @@ python manage.py evaluar_rag \
   --fail-below-hit-rate 0.80
 ```
 
+
+La depuración nunca elimina ejecuciones `EN_CURSO` y conserva siempre la ejecución
+finalizada más reciente y la última ejecución exitosa, incluso cuando sean anteriores
+al umbral. Debe revisarse primero la salida de simulación y programar `--execute` sólo
+después de acordar el período de retención institucional.
+
+## Catálogo candidato de trámites ARCAT
+
+Se incorporó `data/catalogs/arcat-tramites-candidatos-v1.json` con los diez registros
+aportados para iniciar el relevamiento de ARCAT, Rentas y TAD. El archivo está marcado
+deliberadamente como `PENDING_SOURCE_VERIFICATION`: **no se carga en los modelos, no se
+indexa y no puede aparecer en la API pública**. Tener dominios oficiales como referencia
+no sustituye la comprobación de cada nombre, descripción, requisito, vigencia y URL.
+
+La estructura y la allowlist de hosts se validan con:
+
+```bash
+python manage.py validar_catalogo_arcat \
+  --archivo data/catalogs/arcat-tramites-candidatos-v1.json
+```
+
+El siguiente comando falla mientras el borrador no esté aprobado, por lo que puede
+usarse como barrera antes de cualquier futura importación:
+
+```bash
+python manage.py validar_catalogo_arcat \
+  --archivo data/catalogs/arcat-tramites-candidatos-v1.json \
+  --require-verified
+```
+
+Para promover una versión se debe contrastar registro por registro contra
+`arcat.gob.ar`, `dgrentas.arcat.gob.ar` y `tad.catamarca.gob.ar`, completar los campos
+vacíos sólo cuando la fuente los publique, guardar la URL específica y fecha de consulta,
+y realizar revisión humana. Luego se crea una nueva versión del archivo; no se reescribe
+la versión usada como evidencia histórica. El acceso de red de este entorno fue rechazado
+por el proxy, por lo que en esta entrega se preservó el contenido como borrador y no se
+afirma que haya sido verificado online.
+
+Para probar el pipeline sin confundir el borrador con información institucional, puede
+cargarse en un espacio aislado `DEMO`. El flag explícito es obligatorio:
+
+```bash
+python manage.py cargar_catalogo_demo \
+  --archivo data/catalogs/arcat-tramites-candidatos-v1.json \
+  --confirm-demo
+```
+
+La carga es idempotente y crea un organismo `ARCAT DEMO`, trámites inactivos, una fuente
+de origen `DEMO` y documentos bajo `demo.invalid`. Conserva las URLs candidatas sólo en
+metadata y nunca convierte el catálogo en oficial. Luego se pueden generar embeddings y
+ejecutar el benchmark ficticio de punta a punta:
+
+```bash
+python manage.py indexar_documentos --origen DEMO
+python manage.py evaluar_rag --dataset evaluation/datasets/demo-v1.json
+```
+
+Este circuito sirve para desarrollo técnico. La promoción oficial será un proceso
+separado y sólo se implementará cuando exista una versión verificada con URLs específicas
+y aprobación humana.
+
+## API pública de consulta
+
+El endpoint público acepta únicamente JSON y no requiere autenticación:
+
+```http
+POST /api/v1/asistente/consultar/
+Content-Type: application/json
+
+{
+  "pregunta": "¿Qué documentación necesito?",
+  "organismo_id": 1,
+  "categoria_id": 2
+}
+```
+
+`organismo_id` y `categoria_id` son filtros opcionales. La procedencia no puede ser
+elegida por el cliente: la API consulta fuentes oficiales de manera predeterminada.
+La respuesta incluye el texto, el modelo utilizado y evidencias trazables:
+
+```json
+{
+  "respuesta": "Respuesta basada en evidencia [1]",
+  "evidencias": [
+    {
+      "fragmento_id": 15,
+      "documento": "Título del documento",
+      "fuente": "Fuente oficial",
+      "url": "https://dominio-oficial.example/documento"
+    }
+  ],
+  "modelo": "openrouter/free"
+}
+```
+
+La pregunta se limita mediante `RAG_MAX_QUESTION_LENGTH`. El throttle usa la sesión o
+IP de la solicitud sólo para derivar un HMAC irreversible; la identidad original no se
+guarda en logs ni base de datos. `RAG_API_RATE_LIMIT` controla la frecuencia. Los
+detalles internos de OpenRouter nunca se devuelven: los límites producen HTTP 429 y la
+indisponibilidad del proveedor HTTP 503 con mensajes sanitizados.
+
+Compose incluye Redis sin publicar su puerto y configura `DJANGO_CACHE_URL` en el
+backend. Esto permite que varias réplicas compartan el historial del throttle. Si Redis
+falla, el endpoint responde HTTP 503 en vez de omitir el límite. Desarrollo y tests
+pueden dejar la variable vacía para usar memoria local, pero settings de producción
+rechaza explícitamente arrancar sin un Redis configurado. Los datos del throttle son
+efímeros y no requieren persistencia en disco.
+
+## Frontend Next.js
+
+La interfaz pública ofrece un formulario accesible, sugerencias de consulta, estados de
+carga/error y una lista de evidencias con enlaces. También advierte que no deben enviarse
+CUIT, claves ni datos personales y que la respuesta no reemplaza una resolución
+administrativa.
+
+El navegador llama únicamente a `NEXT_PUBLIC_API_BASE_URL`; esa variable contiene una
+URL pública, no una credencial. OpenRouter, modelos, fallbacks, límites y embeddings
+siguen siendo responsabilidad exclusiva de Django. Para desarrollo sin Compose:
+
+```bash
+cd front
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+## Evaluación de recuperación
+
+La evaluación es offline y **no invoca al LLM ni consume OpenRouter**. Cada dataset JSON
+versionado declara una pregunta, una o más URLs documentales esperadas, términos que
+deberían aparecer en los fragmentos y la procedencia (`OFICIAL` o `DEMO`). El comando
+ejecuta el mismo `HybridRetriever` utilizado por la API:
+
+```bash
+python manage.py evaluar_rag \
+  --dataset evaluation/datasets/demo-v1.json
+```
+
+El reporte JSON incluye resultados por caso y tres métricas agregadas:
+
+- `hit_rate`: proporción de preguntas que recuperan al menos un documento esperado;
+- `mean_reciprocal_rank`: premia que la primera evidencia esperada aparezca arriba;
+- `mean_term_coverage`: cobertura de términos esperados dentro de los chunks recuperados.
+
+Para usarlo como control de CI puede indicarse un umbral explícito:
+
+```bash
+python manage.py evaluar_rag \
+  --dataset evaluation/datasets/demo-v1.json \
+  --fail-below-hit-rate 0.80
+```
+
 El archivo incluido es exclusivamente DEMO y sólo verifica el mecanismo. No establece
 un benchmark institucional ni justifica todavía cambiar `RAG_TOP_K`, el chunking o un
 umbral de evidencia. Esos valores deben ajustarse recién con preguntas y documentos
@@ -428,6 +580,18 @@ python manage.py makemigrations --check --dry-run
 ```
 
 Para validar la infraestructura completa, ejecutar además `docker compose config` y las migraciones contra el contenedor PostgreSQL.
+
+### Integración continua
+
+El workflow `.github/workflows/ci.yml` se ejecuta en cada pull request y en los pushes a
+`main`. El job de backend utiliza PostgreSQL 16 con pgvector y Redis reales, mantiene
+`OPENROUTER_API_KEY` vacío, valida la configuración y las migraciones, aplica el esquema
+y ejecuta `pytest`. El job de frontend verifica TypeScript y genera el build de Next.js.
+
+Las credenciales declaradas en el workflow son efímeras y exclusivas de CI. Las pruebas
+no pueden llamar a OpenRouter ni depender de una clave real. Antes de considerar CI como
+barrera de despliegue todavía se debe habilitar la protección de la rama `main` en
+GitHub y exigir ambos jobs como checks obligatorios.
 
 ## Próximas fases
 

@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: arcat_test
+          POSTGRES_USER: arcat
+          POSTGRES_PASSWORD: arcat_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arcat -d arcat_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://arcat:arcat_ci@127.0.0.1:5432/arcat_test
+      DJANGO_CACHE_URL: redis://127.0.0.1:6379/0
+      DJANGO_SETTINGS_MODULE: project.settings.ci
+      DJANGO_SECRET_KEY: ci-only-not-a-production-secret
+      OPENROUTER_API_KEY: ""
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: api/requirements/*.txt
+      - name: Install backend dependencies
+        run: pip install -r requirements/testing.txt
+      - name: Validate Django configuration
+        run: python manage.py check
+      - name: Validate migrations
+        run: python manage.py makemigrations --check --dry-run
+      - name: Apply migrations
+        run: python manage.py migrate --noinput
+      - name: Run backend tests
+        run: pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install frontend dependencies
+        run: npm install --ignore-scripts
+      - name: Check TypeScript
+        run: npm run check
+      - name: Build frontend
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+        run: npm run build
