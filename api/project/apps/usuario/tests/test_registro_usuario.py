@@ -13,8 +13,8 @@ def test_creacion_usuario_satisfactoria():
             "attributes": {
                 "first_name": "David",
                 "last_name": "Sanchez Motran",
-                "password": "contraseña",
-                "password_2": "contraseña",
+                "password": "Clave-Demo-ARCAT-2026!",
+                "password_2": "Clave-Demo-ARCAT-2026!",
                 "email": "debianitram@gmail.com",
                 "username": "debianitram"
             },
@@ -38,15 +38,16 @@ def test_creacion_usuario_satisfactoria():
     assert response.status_code == 201
     data = response.json()['data']
     assert data['type'] == 'Usuario'
-    assert data['id'] == '1'
+    assert data['id'].isdigit()
     assert data['attributes']['username'] == 'debianitram'
     assert data['attributes']['email'] == 'debianitram@gmail.com'
     assert data['attributes']['first_name'] == 'David'
     assert data['attributes']['last_name'] == 'Sanchez Motran'
 
-    usuario = get_user_model().objects.get(id=data['id'])
+    usuario = get_user_model().objects.get(username='debianitram')
+    assert data['id'] == str(usuario.pk)
     assert usuario.is_active is False
-'''
+
 
 @pytest.mark.django_db
 def test_creacion_usuario_falla_passwords_diferentes():
@@ -75,36 +76,48 @@ def test_creacion_usuario_falla_passwords_diferentes():
 @pytest.mark.django_db
 def test_usuario_cambio_password_satisfactoriamente():
     usuario_autenticado = create_user(username='debianitram')
-    usuario_autenticado.set_password('ultima_contraseña')
+    usuario_autenticado.set_password('Clave-Actual-ARCAT-2026!')
+    usuario_autenticado.save(update_fields=('password',))
 
     data = {
-        "clave": "ultima_contraseña",
-        "clave_nueva": "nueva_contraseña",
-        "clave_nueva_2": "nueva_contraseña"
+        "clave": "Clave-Actual-ARCAT-2026!",
+        "clave_nueva": "Nueva-Clave-ARCAT-2026!",
+        "clave_nueva_2": "Nueva-Clave-ARCAT-2026!"
     }
 
     endpoint = "/api/v1/usuario/cambiar-clave-secreta/"
-    response = patch(endpoint, data=data, content_type=CONTENT_TYPE_JSON, user_logged=usuario_autenticado)
+    response = patch(
+        endpoint,
+        data=data,
+        content_type=CONTENT_TYPE_JSON,
+        user_logged=usuario_autenticado,
+    )
 
     assert response.status_code == 200
 
     debianitram = get_user_model().objects.get(username='debianitram')
-    assert debianitram.check_password('nueva_contraseña')
+    assert debianitram.check_password('Nueva-Clave-ARCAT-2026!')
 
 
 @pytest.mark.django_db
 def test_usuario_cambio_password_falla_con_clave():
     usuario_autenticado = create_user(username='debianitram')
-    usuario_autenticado.set_password('ultima_contraseña')
+    usuario_autenticado.set_password('Clave-Actual-ARCAT-2026!')
+    usuario_autenticado.save(update_fields=('password',))
 
     data = {
-        "clave": "ultima.-.",
-        "clave_nueva": "nueva_contraseña",
-        "clave_nueva_2": "nueva_contraseña"
+        "clave": "Clave-Incorrecta-ARCAT-2026!",
+        "clave_nueva": "Nueva-Clave-ARCAT-2026!",
+        "clave_nueva_2": "Nueva-Clave-ARCAT-2026!"
     }
 
     endpoint = "/api/v1/usuario/cambiar-clave-secreta/"
-    response = patch(endpoint, data=data, content_type=CONTENT_TYPE_JSON, user_logged=usuario_autenticado)
+    response = patch(
+        endpoint,
+        data=data,
+        content_type=CONTENT_TYPE_JSON,
+        user_logged=usuario_autenticado,
+    )
 
     assert response.status_code == 400
     errors = response.json()['errors']
@@ -114,16 +127,22 @@ def test_usuario_cambio_password_falla_con_clave():
 @pytest.mark.django_db
 def test_usuario_cambio_password_falla_no_coinciden_nuevas_password():
     usuario_autenticado = create_user(username='debianitram')
-    usuario_autenticado.set_password('ultima_contraseña')
+    usuario_autenticado.set_password('Clave-Actual-ARCAT-2026!')
+    usuario_autenticado.save(update_fields=('password',))
 
     data = {
-        "clave": "ultima_contraseña",
-        "clave_nueva": "NuevaContraseña",
-        "clave_nueva_2": "nueva_contraseña"
+        "clave": "Clave-Actual-ARCAT-2026!",
+        "clave_nueva": "Nueva-Clave-ARCAT-2026!",
+        "clave_nueva_2": "Otra-Clave-ARCAT-2026!"
     }
 
     endpoint = "/api/v1/usuario/cambiar-clave-secreta/"
-    response = patch(endpoint, data=data, content_type=CONTENT_TYPE_JSON, user_logged=usuario_autenticado)
+    response = patch(
+        endpoint,
+        data=data,
+        content_type=CONTENT_TYPE_JSON,
+        user_logged=usuario_autenticado,
+    )
 
     assert response.status_code == 400
     errors = response.json()['errors']
@@ -133,22 +152,28 @@ def test_usuario_cambio_password_falla_no_coinciden_nuevas_password():
 @pytest.mark.django_db
 def test_usuario_cambio_password_falla_password_demasiado_corta_y_comun():
     usuario_autenticado = create_user(username='debianitram')
-    usuario_autenticado.set_password('ultima_contraseña')
+    usuario_autenticado.set_password('Clave-Actual-ARCAT-2026!')
+    usuario_autenticado.save(update_fields=('password',))
 
     data = {
-        "clave": "ultima_contraseña",
+        "clave": "Clave-Actual-ARCAT-2026!",
         "clave_nueva": "admin",
         "clave_nueva_2": "admin"
     }
 
     endpoint = "/api/v1/usuario/cambiar-clave-secreta/"
-    response = patch(endpoint, data=data, content_type=CONTENT_TYPE_JSON, user_logged=usuario_autenticado)
+    response = patch(
+        endpoint,
+        data=data,
+        content_type=CONTENT_TYPE_JSON,
+        user_logged=usuario_autenticado,
+    )
 
     assert response.status_code == 400
     errors = response.json()['errors']
-    assert len(errors) == 3
-    codigos_errors = [error['code'] for error in errors]
-    assert 'password_too_similar' in codigos_errors
-    assert 'password_too_short' in codigos_errors
-    assert 'password_too_common' in codigos_errors
-'''
+    codigos_errors = {error['code'] for error in errors}
+    assert {
+        'password_too_similar',
+        'password_too_short',
+        'password_too_common',
+    }.issubset(codigos_errors)

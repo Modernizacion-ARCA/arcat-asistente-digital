@@ -18,17 +18,24 @@ def create_user(username, first_name='Admin', last_name='Root', email=None, *, i
         defaults=dict(
             first_name=first_name,
             last_name=last_name,
-            password='password',
             is_active=is_active
         )
     )
+    if created:
+        user.set_password('Clave-Test-ARCAT-2026!')
+        user.save(update_fields=('password',))
 
     return user
 
 
 @pytest.fixture
 def get_default_test_user():
-    test_user = create_user(username='test_user', first_name='Test', last_name='User', email='tests@user')
+    test_user = create_user(
+        username='test_user',
+        first_name='Test',
+        last_name='User',
+        email='tests@user',
+    )
     return test_user
 
 
