@@ -441,6 +441,24 @@ python manage.py makemigrations --check --dry-run
 
 Para validar la infraestructura completa, ejecutar además `docker compose config` y las migraciones contra el contenedor PostgreSQL.
 
+Las pruebas no deben depender de valores de secuencia concretos —por ejemplo, asumir
+que un ID será `1`— porque PostgreSQL no reinicia necesariamente sus secuencias entre
+transacciones. Tampoco se mantienen casos desactivados dentro de strings: todo escenario
+vigente debe ejecutarse o marcarse explícitamente con `skip` y una justificación. Los
+tests de contraseña utilizan claves fuertes y verifican códigos de error sin depender
+del orden exacto en que Django ejecute sus validadores.
+
+Antes de instalar dependencias, CI ejecuta `python scripts/check_test_sources.py`. Este
+control parsea todos los archivos de tests con `ast`, detecta errores de sintaxis y
+rechaza casos ocultos dentro de strings multilínea. Así, una comilla triple accidental
+falla con un mensaje corto y localizado en vez de interrumpir tardíamente la colección
+completa de pytest.
+
+La advertencia deprecada `length_is` se filtra únicamente en pytest porque proviene de
+las plantillas de django-jet, no del código del proyecto; debe retirarse al actualizar o
+reemplazar esa dependencia. La configuración ya adopta el esquema HTTPS futuro de los
+campos URL mediante `FORMS_URLFIELD_ASSUME_HTTPS`.
+
 ### Integración continua
 
 El workflow `.github/workflows/ci.yml` se ejecuta en cada pull request y en los pushes a

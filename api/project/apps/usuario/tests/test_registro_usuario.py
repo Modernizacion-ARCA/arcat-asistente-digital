@@ -171,9 +171,9 @@ def test_usuario_cambio_password_falla_password_demasiado_corta_y_comun():
 
     assert response.status_code == 400
     errors = response.json()['errors']
-    assert len(errors) == 3
-    codigos_errors = [error['code'] for error in errors]
-    assert 'password_too_similar' in codigos_errors
-    assert 'password_too_short' in codigos_errors
-    assert 'password_too_common' in codigos_errors
-'''
+    codigos_errors = {error['code'] for error in errors}
+    assert {
+        'password_too_similar',
+        'password_too_short',
+        'password_too_common',
+    }.issubset(codigos_errors)
